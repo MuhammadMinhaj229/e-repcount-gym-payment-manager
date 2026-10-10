@@ -16,7 +16,7 @@ export function useAuth() {
   return ctx;
 }
 
-const AUTH_PAGE_PATTERN = /^\/(([\w-]+)\/)?(login|signup|callback|forgot-password|reset-password|verify-email|accept-invite)/;
+const AUTH_PAGE_PATTERN = /^\/(([\w-]+)\/)?(login|signup|callback|forgot-password|verify-email|accept-invite)/;
 
 export default function RootLayout() {
   const dispatch = useDispatch();
