@@ -221,13 +221,17 @@ begin
     raise exception 'The selected membership plan does not belong to this gym.';
   end if;
 
-  if tg_table_name = 'membership_dues' and not exists (
-    select 1
-    from public.gym_members m
-    where m.id = new.member_c
-      and m.gym_id = new.gym_id
-  ) then
-    raise exception 'The selected member does not belong to this gym.';
+  -- Keep the dues-only field reference in its own branch so member inserts do not
+  -- attempt to resolve NEW.member_c on the gym_members trigger path.
+  if tg_table_name = 'membership_dues' then
+    if not exists (
+      select 1
+      from public.gym_members m
+      where m.id = new.member_c
+        and m.gym_id = new.gym_id
+    ) then
+      raise exception 'The selected member does not belong to this gym.';
+    end if;
   end if;
 
   return new;
