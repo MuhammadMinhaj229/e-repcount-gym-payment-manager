@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import ApperIcon from '@/components/ApperIcon';
-import { adjustFeeCycleForPayment, localDateInputValue, logMutationError } from '@/utils/repcount';
+import { localDateInputValue, logMutationError } from '@/utils/repcount';
 
 export const route = { path: '/payments/new', layout: 'owner', access: "profile === 'Admin_c' || profile === 'Manager_c' || profile === 'Staff_c'" };
 
@@ -115,18 +115,8 @@ export default function NewPayment() {
         return;
       }
 
-      let balanceUpdated = true;
-      if (linkedDue && form.status_c === 'Paid') {
-        try {
-          await adjustFeeCycleForPayment(sdk, linkedDue.Id, amount);
-        } catch (syncError) {
-          balanceUpdated = false;
-          logMutationError('fee cycle balance', 'update after payment', syncError);
-          toast.warning('Payment recorded, but the fee-cycle balance needs review.');
-        }
-      }
-
-      toast.success(balanceUpdated ? 'Payment recorded' : 'Payment saved');
+      // The Supabase database trigger reconciles paid payments to fee-cycle balances atomically.
+      toast.success('Payment recorded');
       navigate(`/payments/${result.data[0].Id}`);
     } catch (error) {
       toast.error(error.message || 'Could not record payment');
