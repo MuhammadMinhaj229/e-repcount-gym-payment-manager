@@ -10,16 +10,39 @@ export const isSupabaseConfigured = Boolean(
   !publishableKey.includes('replace_with'),
 );
 
-export const supabase = isSupabaseConfigured
-  ? createClient(supabaseUrl, publishableKey, {
+let supabaseInitializationError = null;
+export let supabase = null;
+
+// A bad Vercel environment value must not throw during module import: if it does,
+// React never mounts and the static HTML loader remains on screen indefinitely.
+if (isSupabaseConfigured) {
+  try {
+    supabase = createClient(supabaseUrl, publishableKey, {
       auth: {
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: true,
         flowType: 'pkce',
       },
-    })
-  : null;
+    });
+  } catch (error) {
+    supabaseInitializationError = error instanceof Error ? error.message : String(error);
+    console.error('[RepCount] Supabase client initialization failed:', supabaseInitializationError);
+  }
+}
+
+function getSupabaseConfigurationError() {
+  if (!supabaseUrl || supabaseUrl.includes('replace_with')) {
+    return 'VITE_SUPABASE_URL is missing or still a placeholder in Vercel. Add the Supabase project URL and redeploy.';
+  }
+  if (!publishableKey || publishableKey.includes('replace_with')) {
+    return 'VITE_SUPABASE_PUBLISHABLE_KEY is missing or still a placeholder in Vercel. Add the project publishable key and redeploy.';
+  }
+  if (supabaseInitializationError) {
+    return 'The Supabase client could not start. Check VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in Vercel. Details: ' + supabaseInitializationError;
+  }
+  return 'Supabase is not ready. Verify the project's Vercel environment variables and redeploy.';
+}
 
 const TABLES = {
   plans_c: 'membership_plans',
@@ -46,9 +69,7 @@ const ROLE_TO_DB = { Admin_c: 'admin', Manager_c: 'manager', Staff_c: 'staff' };
 const DB_TO_ROLE = { admin: 'Admin_c', manager: 'Manager_c', staff: 'Staff_c' };
 
 function requireSupabase() {
-  if (!supabase) {
-    throw new Error('Supabase is not configured for this deployment. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in Vercel, then redeploy.');
-  }
+  if (!supabase) throw new Error(getSupabaseConfigurationError());
   return supabase;
 }
 
@@ -507,7 +528,8 @@ async function invokeAdminAction(action, payload = {}) {
 
 const session = {
   ui: undefined,
-  get initFailed() { return !isSupabaseConfigured; },
+  get initFailed() { return !isSupabaseConfigured || !supabase; },
+  get configurationError() { return getSupabaseConfigurationError(); },
 
   user() {
     return cachedAppUser;
