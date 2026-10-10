@@ -29,5 +29,12 @@ jobs:
           VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_build_check_placeholder
       - name: Set up Deno
         uses: denoland/setup-deno@v2
+      - name: Assert no Apper runtime remains
+        shell: bash
+        run: |
+          if grep -R -n -E 'window\.ApperSDK|VITE_APPER_|MemoryAdapter|ApperAdapter|currentMockOwner' src index.html; then
+            echo "Found an Apper runtime or mock-data reference."
+            exit 1
+          fi
       - name: Type-check Admin Edge Function
         run: deno check supabase/functions/admin-users/index.ts
