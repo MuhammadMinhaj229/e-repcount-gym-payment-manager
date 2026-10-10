@@ -205,7 +205,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $workspace$
 begin
   if new.plan_c is not null and not exists (
     select 1
@@ -227,7 +227,7 @@ begin
 
   return new;
 end;
-$;
+$workspace$;
 
 drop trigger if exists validate_workspace_links on public.gym_members;
 create trigger validate_workspace_links
