@@ -43,6 +43,16 @@ jobs:
       - name: Validate SQL migration syntax
         run: |
           python -m pip install --quiet pglast
-          python -c "from pglast import parse_sql; [parse_sql(open(path, encoding='utf-8').read()) for path in ['supabase/migrations/202610100001_initial_schema.sql', 'supabase/bootstrap_admin.sql']]; print('Supabase SQL parsed successfully')"
-      - name: Type-check Admin Edge Function
-        run: deno check supabase/functions/admin-users/index.ts
+          python - <<'PY'
+          from glob import glob
+          from pglast import parse_sql
+
+          paths = sorted(glob("supabase/migrations/*.sql")) + ["supabase/bootstrap_admin.sql"]
+          for path in paths:
+              parse_sql(open(path, encoding="utf-8").read())
+              print(f"SQL parsed: {path}")
+          PY
+      - name: Type-check Edge Functions
+        run: |
+          deno check supabase/functions/admin-users/index.ts
+          deno check supabase/functions/secure-login/index.ts
