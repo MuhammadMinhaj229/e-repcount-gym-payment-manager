@@ -4,7 +4,7 @@ RepCount is a mobile-first gym-owner CRM for member records, membership plans, f
 
 ## Current implementation status
 
-The current app is a React + Vite project and its data adapter is still Apper's mock/memory adapter. It is **not yet connected to a production database or Supabase**. Demo rows are seeded from `src/services/mockData/`. Do not use this mock setup for real member/payment records.
+The current app is a React + Vite project and its data adapter is Apper's MemoryAdapter. It is **not connected to a production database or Supabase**. For a clean-start showcase, plans, members, dues and payments begin empty; only the demo login remains. Records created in the mock session are temporary and can be lost on a full page reload. Do not use this mock setup for real member/payment records.
 
 ## Local development
 
@@ -39,7 +39,7 @@ Before handling real gym data:
 - Member history queries filter by the selected member on the data layer and fetch in pages.
 - Linked paid payments attempt to update the fee-cycle amount paid, balance, and status after creation, editing, refunds, or deletion.
 - Write failures are shown to the user and recorded in the browser console without logging member contact details.
-- Demo ownership fields and fee-cycle balances are aligned with the included sample receipt history.
+- Newly created mock records are tagged with the signed-in demo owner so the owner's row policies can display them within the current session.
 
 ## Important data behavior
 
