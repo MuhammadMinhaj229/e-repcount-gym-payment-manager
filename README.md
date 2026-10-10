@@ -4,7 +4,7 @@ RepCount is a mobile-first gym-owner CRM for member records, membership plans, f
 
 ## Current implementation status
 
-The current app is a React + Vite project and its data adapter is Apper's MemoryAdapter. It is **not connected to a production database or Supabase**. For a clean-start showcase, plans, members, dues and payments begin empty; only the demo login remains. Records created in the mock session are temporary and can be lost on a full page reload. Do not use this mock setup for real member/payment records.
+The current app is a React + Vite project and its data adapter is still Apper's mock/memory adapter. It is **not yet connected to a production database or Supabase**. The dashboard is intentionally simplified to three collection metrics and a due-today list; summary cards navigate to filtered dues/payments views. Do not use this mock setup for real member/payment records.
 
 ## Local development
 
@@ -26,7 +26,7 @@ Requirements: Node.js and npm.
 ## Database / production checklist
 
 Before handling real gym data:
-- Choose and connect the production data store (Apper database or a complete Supabase migration).
+- Choose and connect the production data store. For a Supabase migration, add the project URL and publishable key as browser variables, keep any secret/service-role key exclusively server-side, create the SQL schema migration, and enforce per-gym Row Level Security before using real records.
 - Use server-enforced per-owner access policies and verify them using two separate test accounts.
 - Ensure payment writes, refunds/deletions, and linked fee-cycle balances remain reconciled.
 - Configure authentication redirect URLs and the deployed site's allowed origins.
@@ -39,7 +39,7 @@ Before handling real gym data:
 - Member history queries filter by the selected member on the data layer and fetch in pages.
 - Linked paid payments attempt to update the fee-cycle amount paid, balance, and status after creation, editing, refunds, or deletion.
 - Write failures are shown to the user and recorded in the browser console without logging member contact details.
-- Newly created mock records are tagged with the signed-in demo owner so the owner's row policies can display them within the current session.
+- The initial sample plans, gym members, fee cycles and payments have been cleared for a clean-start showcase; new mock records include current demo-owner metadata.
 
 ## Important data behavior
 
