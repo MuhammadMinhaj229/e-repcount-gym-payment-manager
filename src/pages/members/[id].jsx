@@ -39,7 +39,7 @@ export default function MemberDetail() {
   const { data: member, loading, error, run } = useFetch(() => sdk.table('gym_members_c').select(memberFields).get(id).then(result => result.data), [id]);
   const { data: dues } = useFetch(() => fetchAllMemberRows('membership_dues_c', ['Id','Name','member_c','plan_c','due_date_c','amount_due_c','amount_paid_c','balance_c','status_c'], id), [id]);
   const { data: payments } = useFetch(() => fetchAllMemberRows('payments_c', ['Id','Name','member_c','amount_c','paid_on_c','method_c','status_c'], id), [id]);
-  const { data: plans } = useFetch(() => sdk.table('plans_c').select(['Id','Name','price_c','duration_c']).fetch().then(result => { if(!result.success) throw new Error(result.message); return result.data; }), []);
+  const { data: plans } = useFetch(() => sdk.table('plans_c').select(['Id','Name','price_c','duration_c']).page(1, 100).fetch().then(result => { if(!result.success) throw new Error(result.message); return result.data; }), []);
   const [editing,setEditing] = useState(false);
   const { profile } = useProfile();
   const { canUpdate, canDelete } = getTableAccess(profile, 'gym_members_c');
