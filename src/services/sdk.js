@@ -641,6 +641,7 @@ export const sdk = {
   session,
   teams,
   isConfigured: isSupabaseConfigured,
+  isSupabase: true,
   table: tableName => new SupabaseQueryBuilder(tableName),
 
   async dashboardSummary(today) {
