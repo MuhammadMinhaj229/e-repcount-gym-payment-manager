@@ -46,7 +46,7 @@ Install the Supabase CLI and authenticate from a terminal:
 ```bash
 npm install
 npx supabase login
-npx supabase link --project-ref pnhpkraqsahpebjiyynwz
+npx supabase link --project-ref pnhpkraqsahpebjiynwz
 npx supabase functions deploy admin-users
 ```
 
@@ -62,7 +62,7 @@ Set the production Site URL and allowed redirect URLs to your actual Vercel/cust
 
 In Vercel → RepCount → **Settings → Environment Variables**, set both variables for Production (and Preview if needed):
 
-- `VITE_SUPABASE_URL` = `https://pnhpkraqsahpebjiyynwz.supabase.co`
+- `VITE_SUPABASE_URL` = `https://pnhpkraqsahpebjiynwz.supabase.co`
 - `VITE_SUPABASE_PUBLISHABLE_KEY` = the Supabase project's current publishable key
 
 Redeploy after saving these values. These are the only Supabase configuration values that belong in the browser bundle. **Never create a `VITE_SUPABASE_SERVICE_ROLE_KEY` or place a database connection string in a frontend variable.**
