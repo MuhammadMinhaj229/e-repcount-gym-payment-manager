@@ -17,6 +17,8 @@ export function logMutationError(entity, operation, error) {
  * The SDK does not expose a multi-table transaction, so callers must surface sync failures clearly.
  */
 export async function adjustFeeCycleForPayment(sdk, dueId, delta) {
+  // Supabase recalculates fee-cycle balances in a database trigger in the same transaction as payment writes.
+  if (sdk?.isSupabase) return null;
   const deltaCents = Math.round(Number(delta) * 100);
   if (!dueId || !Number.isFinite(deltaCents) || deltaCents === 0) return null;
 
