@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { AlertDialog,AlertDialogAction,AlertDialogCancel,AlertDialogContent,AlertDialogDescription,AlertDialogFooter,AlertDialogHeader,AlertDialogTitle,AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import ApperIcon from '@/components/ApperIcon';
-import { adjustFeeCycleForPayment, logMutationError } from '@/utils/repcount';
+import { logMutationError } from '@/utils/repcount';
 import { useProfile } from '@/hooks/useProfile';
 import { getTableAccess } from '@/services/userPermissions';
 export const route={path:'/payments/:id',layout:'owner',access:"profile === 'Admin_c' || profile === 'Manager_c' || profile === 'Staff_c'"};
@@ -48,14 +48,7 @@ export default function PaymentDetail(){
       if (!result.messages?.length) { toast.error('The payment could not be updated.'); logMutationError('payment','update','No record returned by SDK'); }
       return;
     }
-    if (dueId && delta !== 0) {
-      try {
-        await adjustFeeCycleForPayment(sdk, dueId, delta);
-      } catch (syncError) {
-        logMutationError('fee cycle balance','update after payment edit',syncError);
-        toast.warning('Payment updated, but the linked fee-cycle balance needs review.');
-      }
-    }
+    // The Supabase database trigger reconciles the fee-cycle balance for this change.
     toast.success('Payment updated');
     setEditing(false);
     setForm(null);
@@ -73,14 +66,7 @@ export default function PaymentDetail(){
       if (!result.messages?.length) { toast.error('The payment could not be deleted.'); logMutationError('payment','delete','No record returned by SDK'); }
       return;
     }
-    if (payment.due_c?.Id && payment.status_c === 'Paid') {
-      try {
-        await adjustFeeCycleForPayment(sdk, payment.due_c.Id, -Number(payment.amount_c || 0));
-      } catch (syncError) {
-        logMutationError('fee cycle balance','update after payment deletion',syncError);
-        toast.warning('Payment deleted, but the linked fee-cycle balance needs review.');
-      }
-    }
+    // Deleting the payment automatically reconciles its linked fee cycle in Postgres.
     toast.success('Payment deleted');
     navigate('/payments');
   } catch(error) {
