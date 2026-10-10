@@ -29,10 +29,11 @@ Open the Supabase Dashboard → **SQL Editor** → **New query**. Run these migr
 
 1. `supabase/migrations/202610100001_initial_schema.sql`
 2. `supabase/migrations/202610100002_harden_function_privileges.sql`
+3. `supabase/migrations/202610100003_move_tenant_helpers_private.sql`
 
-The first creates the business tables, indexes, workspace helper functions, RLS policies, same-gym relationship checks, payment-reconciliation triggers and dashboard-summary RPC. The second removes anonymous access to application RPCs and blocks direct RPC execution of trigger/internal routines while retaining the required authenticated helper calls.
+The first creates the business tables, indexes, per-gym RLS policies, same-gym relationship checks, payment-reconciliation triggers and dashboard-summary RPC. The follow-up migrations remove anonymous/internal RPC access and keep the tenant helper functions in a non-API-exposed `private` schema.
 
-Do not run business CRUD until both scripts succeed without SQL errors.
+Do not run business CRUD until all three scripts succeed without SQL errors.
 
 ### 2. Create the first Admin
 
