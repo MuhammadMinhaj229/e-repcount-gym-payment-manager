@@ -124,6 +124,18 @@ function selectionFor(tableName, fields) {
       relationFields.set(field, existing);
       continue;
     }
+
+    // Also support explicit lookup columns such as "member_c.Name".
+    const dotIndex = field.indexOf('.');
+    const relationAlias = dotIndex > 0 ? field.slice(0, dotIndex) : '';
+    const nestedRelation = relationMap[relationAlias];
+    if (nestedRelation) {
+      const existing = relationFields.get(relationAlias) ?? new Set();
+      nestedRelation.fields.forEach(name => existing.add(name));
+      existing.add(toDbField(field.slice(dotIndex + 1)));
+      relationFields.set(relationAlias, existing);
+      continue;
+    }
     if (typeof fieldSpec === 'object' && fieldSpec.ref) {
       throw new Error('Unknown relationship field ' + field + ' on ' + tableName + '.');
     }
