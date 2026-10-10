@@ -8,6 +8,8 @@ import ApperIcon from '@/components/ApperIcon';
 import { ListSkeleton } from '@/components/PageSkeleton';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { formatLocalDate, DATE_FORMATS } from '@/utils/date';
+import { useProfile } from '@/hooks/useProfile';
+import { getTableAccess } from '@/services/userPermissions';
 export const route={path:'/dues',layout:'owner',access:"profile === 'Admin_c' || profile === 'Manager_c' || profile === 'Staff_c'"};
 export const nav={label:'Dues',icon:'CalendarClock',order:2,profiles:['Admin_c','Manager_c','Staff_c']};
 const money=value=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(Number(value||0));
@@ -16,6 +18,8 @@ function monday(date){const copy=new Date(date.getFullYear(),date.getMonth(),dat
 const { and, or, contains, gt, eq, ne, lte, lt } = window.RepCountSDK.CoreSDK;
 const periods = [['today', 'Today'], ['week', 'Rest of week'], ['overdue', 'Overdue'], ['all', 'All unpaid']];
 export default function Dues(){
+ const { profile } = useProfile();
+ const { canCreate } = getTableAccess(profile, 'membership_dues_c');
  const [search,setSearch]=useState('');
  const [searchParams,setSearchParams]=useSearchParams();
  const [view,setView]=useState(()=>periods.some(([value])=>value===searchParams.get('view'))?searchParams.get('view'):'today');
@@ -63,6 +67,6 @@ export default function Dues(){
      {rows.length === 0 && <div className="space-y-3 p-4 text-center"><p className="text-sm font-medium">{search ? 'No matching dues' : 'No unpaid dues in this view'}</p><p className="text-sm text-muted-foreground">{search ? 'Try another name or clear your search.' : 'Choose another period to see more dues.'}</p>{search && <Button variant="outline" onClick={() => setSearch('')}>Clear search</Button>}</div>}
      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border p-4"><span className="text-sm text-muted-foreground">Page {page}</span><div className="flex gap-2"><Button variant="outline" disabled={page === 1} onClick={() => setPage(value => value - 1)}>Previous</Button><Button variant="outline" disabled={!data?.hasMore} onClick={() => setPage(value => value + 1)}>Next</Button></div></div>
    </section>}
-   <footer className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-muted-foreground">Reminders open in WhatsApp for you to review and send.</p><Button asChild variant="outline" className="min-h-11"><Link to="/dues/new">Add a due</Link></Button></footer>
+   <footer className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-muted-foreground">Reminders open in WhatsApp for you to review and send.</p>{canCreate && <Button asChild variant="outline" className="min-h-11"><Link to="/dues/new">Add a due</Link></Button>}</footer>
  </div>;
 }
