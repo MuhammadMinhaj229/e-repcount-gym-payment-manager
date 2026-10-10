@@ -12,13 +12,7 @@ export function logMutationError(entity, operation, error) {
   console.error('[RepCount] ' + operation + ' ' + entity + ' failed: ' + message);
 }
 
-/**
- * Reconcile a linked fee-cycle aggregate after a payment is created, edited, refunded, or removed.
- * The SDK does not expose a multi-table transaction, so callers must surface sync failures clearly.
- */
 export async function adjustFeeCycleForPayment(sdk, dueId, delta) {
-  // Supabase recalculates fee-cycle balances in a database trigger in the same transaction as payment writes.
-  if (sdk?.isSupabase) return null;
   const deltaCents = Math.round(Number(delta) * 100);
   if (!dueId || !Number.isFinite(deltaCents) || deltaCents === 0) return null;
 
@@ -64,23 +58,4 @@ export async function adjustFeeCycleForPayment(sdk, dueId, delta) {
   }
 
   return updated.data[0];
-}
-
-/**
- * Adds the signed-in demo owner to new mock records so the mock row policies
- * can display records created during the current session.
- * This is only for the MemoryAdapter showcase; production writes should let
- * the connected backend assign and enforce ownership.
- */
-export function currentMockOwner(sdk) {
-  const user = sdk?.session?.user?.();
-  const ownerId = user?.Id;
-  if (!ownerId) {
-    throw new Error('Your session is not ready. Sign in again and retry.');
-  }
-  const fullName = [user?.FirstName, user?.LastName].filter(Boolean).join(' ');
-  return {
-    Id: String(ownerId),
-    Name: user?.Name || fullName || user?.name || user?.emailAddress || user?.Email || 'Gym Owner',
-  };
 }
