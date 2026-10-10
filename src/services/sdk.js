@@ -41,7 +41,7 @@ function getSupabaseConfigurationError() {
   if (supabaseInitializationError) {
     return 'The Supabase client could not start. Check VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in Vercel. Details: ' + supabaseInitializationError;
   }
-  return 'Supabase is not ready. Verify the project's Vercel environment variables and redeploy.';
+  return "Supabase is not ready. Verify the project's Vercel environment variables and redeploy.";
 }
 
 const TABLES = {
