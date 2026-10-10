@@ -21,7 +21,14 @@ jobs:
         with:
           node-version: 22
       - name: Install dependencies
-        run: npm install
+        shell: bash
+        run: |
+          # GitHub-hosted runners occasionally hit an npm cache rename race.
+          # Retry once with a clean cache; a real dependency/build error still fails CI.
+          npm install --no-audit --no-fund || {
+            npm cache clean --force
+            npm install --no-audit --no-fund
+          }
       - name: Build production bundle
         run: npm run build
         env:
