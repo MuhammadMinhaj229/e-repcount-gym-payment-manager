@@ -13,7 +13,7 @@ import { useProfile } from '@/hooks/useProfile';
 import { getTableAccess } from '@/services/userPermissions';
 export const route={path:'/members',layout:'owner',access:"profile === 'Admin_c' || profile === 'Manager_c' || profile === 'Staff_c'"};
 export const nav={label:'Members',icon:'Users',order:1,profiles:['Admin_c','Manager_c','Staff_c']};
-const { contains, eq, and, or } = window.ApperSDK.CoreSDK;
+const { contains, eq, and, or } = window.RepCountSDK.CoreSDK;
 const statuses = ['Active', 'Due soon', 'Overdue', 'Inactive'];
 const statusStyles = {
   Active: 'bg-success/10 border-success/20 text-success',
