@@ -103,7 +103,7 @@ function LookupPicker({
       const extraFilter = fetchParamsRef.current?.filter;
       if (extraFilter) q = q.where(extraFilter);
       if (isServerSearch && query) {
-        q = q.where(window.ApperSDK.CoreSDK.contains(searchField, query));
+        q = q.where(window.RepCountSDK.CoreSDK.contains(searchField, query));
       }
       const res = await q.page(pageNum, pageSize).fetch();
       if (controller.signal.aborted) return;
