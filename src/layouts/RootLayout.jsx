@@ -35,8 +35,18 @@ export default function RootLayout() {
 
     let isMounted = true;
     const init = async () => {
+      let timeoutId;
       try {
-        const currentUser = await sdk.session.getUser();
+        // Never leave the pre-React loader showing forever when auth/network requests hang.
+        const currentUser = await Promise.race([
+          sdk.session.getUser(),
+          new Promise((_, reject) => {
+            timeoutId = window.setTimeout(
+              () => reject(new Error('Session initialization timed out after 10 seconds. Check Supabase connectivity and browser console errors.')),
+              10_000,
+            );
+          }),
+        ]);
         if (!isMounted) return;
         if (currentUser) {
           dispatch(setUser(currentUser));
@@ -44,8 +54,11 @@ export default function RootLayout() {
         } else {
           dispatch(setInitialized());
         }
-      } catch {
+      } catch (error) {
+        console.error('[RepCount] Session initialization failed:', error instanceof Error ? error.message : error);
         if (isMounted) dispatch(setInitialized());
+      } finally {
+        if (timeoutId) window.clearTimeout(timeoutId);
       }
     };
     init();
@@ -81,11 +94,13 @@ export default function RootLayout() {
 
   const deepestMatch = matches[matches.length - 1];
   const accessRule = deepestMatch?.handle?.access ?? 'public';
-  // Decided during render, not after it: a route this session may not open never paints.
-  const allowed = isInitialized && verifyRouteAccess(accessRule, user);
+  const isPublicRoute = accessRule === 'public';
+  // Public login/help pages must render even if session initialization is still pending.
+  // Protected pages remain gated until the session resolves or its timeout releases the loader.
+  const allowed = isPublicRoute || (isInitialized && verifyRouteAccess(accessRule, user));
 
   useEffect(() => {
-    if (!isInitialized) return;
+    if (!isInitialized || isPublicRoute) return;
     if (!allowed) {
       const loginRoute = APP_CONFIG.defaultLoginRoute ?? '/login';
       if (user) {
@@ -95,7 +110,7 @@ export default function RootLayout() {
         navigateRef.current(`${loginRoute}?redirect=${encodeURIComponent(currentPath)}`, { replace: true });
       }
     }
-  }, [location.pathname, isInitialized, allowed, user]);
+  }, [location.pathname, isInitialized, isPublicRoute, allowed, user]);
 
   const handleLogout = useCallback(async () => {
     await sdk.session.logout();
@@ -105,7 +120,7 @@ export default function RootLayout() {
 
   // Loader while the session resolves AND while a denied route redirects — the shell, the page
   // and its data fetches never mount for a visitor who may not see them.
-  if (!isInitialized || !allowed) return <AppLoader fullScreen />;
+  if (!isPublicRoute && (!isInitialized || !allowed)) return <AppLoader fullScreen />;
 
   return (
     <AuthContext.Provider value={{ logout: handleLogout, user, isAuthenticated }}>
