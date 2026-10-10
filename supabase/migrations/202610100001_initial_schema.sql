@@ -107,7 +107,12 @@ create index if not exists payments_gym_paid_on_idx on public.payments(gym_id, p
 create index if not exists payments_due_status_idx on public.payments(due_c, status_c);
 create index if not exists payments_member_idx on public.payments(member_c);
 
-create or replace function public.current_gym_id()
+-- Internal tenant helper functions live outside the API-exposed public schema.
+create schema if not exists private;
+revoke all on schema private from public, anon;
+grant usage on schema private to authenticated;
+
+create or replace function private.current_gym_id()
 returns uuid
 language sql
 stable
@@ -121,7 +126,7 @@ as $$
   limit 1
 $$;
 
-create or replace function public.has_gym_role(target_gym_id uuid, allowed_roles text[])
+create or replace function private.has_gym_role(target_gym_id uuid, allowed_roles text[])
 returns boolean
 language sql
 stable
@@ -138,10 +143,10 @@ as $$
   )
 $$;
 
-revoke all on function public.current_gym_id() from public;
-revoke all on function public.has_gym_role(uuid, text[]) from public;
-grant execute on function public.current_gym_id() to authenticated;
-grant execute on function public.has_gym_role(uuid, text[]) to authenticated;
+revoke all on function private.current_gym_id() from public;
+revoke all on function private.has_gym_role(uuid, text[]) from public;
+grant execute on function private.current_gym_id() to authenticated;
+grant execute on function private.has_gym_role(uuid, text[]) to authenticated;
 
 create or replace function public.touch_updated_at()
 returns trigger
@@ -386,7 +391,7 @@ as $$
     coalesce((
       select sum(d.balance_c)
       from public.membership_dues d
-      where d.gym_id = public.current_gym_id()
+      where d.gym_id = private.current_gym_id()
         and d.balance_c > 0
         and d.status_c <> 'Waived'
     ), 0),
@@ -394,7 +399,7 @@ as $$
     coalesce((
       select sum(d.balance_c)
       from public.membership_dues d
-      where d.gym_id = public.current_gym_id()
+      where d.gym_id = private.current_gym_id()
         and d.due_date_c = p_today
         and d.balance_c > 0
         and d.status_c <> 'Waived'
@@ -403,7 +408,7 @@ as $$
     coalesce((
       select sum(p.amount_c)
       from public.payments p
-      where p.gym_id = public.current_gym_id()
+      where p.gym_id = private.current_gym_id()
         and p.paid_on_c = p_today
         and p.status_c = 'Paid'
     ), 0)
@@ -422,8 +427,8 @@ grant execute on function public.dashboard_summary(date) to authenticated;
 
 -- Explicitly remove Supabase's per-role default function grants.
 -- Trigger functions are not API endpoints and must never be exposed through RPC.
-revoke execute on function public.current_gym_id() from anon;
-revoke execute on function public.has_gym_role(uuid, text[]) from anon;
+revoke execute on function private.current_gym_id() from anon;
+revoke execute on function private.has_gym_role(uuid, text[]) from anon;
 revoke execute on function public.dashboard_summary(date) from anon;
 revoke execute on function public.touch_updated_at() from anon, authenticated;
 revoke execute on function public.normalize_due_balance() from anon, authenticated;
@@ -444,7 +449,7 @@ alter table public.payments enable row level security;
 drop policy if exists gyms_read_current_gym on public.gyms;
 create policy gyms_read_current_gym on public.gyms
 for select to authenticated
-using (id = public.current_gym_id());
+using (id = private.current_gym_id());
 
 drop policy if exists profiles_read_workspace on public.profiles;
 create policy profiles_read_workspace on public.profiles
@@ -455,9 +460,9 @@ using (
     select 1
     from public.gym_users other_user
     where other_user.user_id = profiles.id
-      and other_user.gym_id = public.current_gym_id()
+      and other_user.gym_id = private.current_gym_id()
       and other_user.status = 'active'
-      and public.has_gym_role(other_user.gym_id, array['admin']::text[])
+      and private.has_gym_role(other_user.gym_id, array['admin']::text[])
   )
 );
 
@@ -465,24 +470,24 @@ drop policy if exists gym_users_read_workspace on public.gym_users;
 create policy gym_users_read_workspace on public.gym_users
 for select to authenticated
 using (
-  gym_id = public.current_gym_id()
+  gym_id = private.current_gym_id()
   and (
     user_id = auth.uid()
-    or public.has_gym_role(gym_id, array['admin']::text[])
+    or private.has_gym_role(gym_id, array['admin']::text[])
   )
 );
 
 drop policy if exists plans_read_workspace on public.membership_plans;
 create policy plans_read_workspace on public.membership_plans
 for select to authenticated
-using (gym_id = public.current_gym_id());
+using (gym_id = private.current_gym_id());
 
 drop policy if exists plans_insert_admin_manager on public.membership_plans;
 create policy plans_insert_admin_manager on public.membership_plans
 for insert to authenticated
 with check (
-  gym_id = public.current_gym_id()
-  and public.has_gym_role(gym_id, array['admin', 'manager']::text[])
+  gym_id = private.current_gym_id()
+  and private.has_gym_role(gym_id, array['admin', 'manager']::text[])
   and created_by = auth.uid()
 );
 
@@ -490,33 +495,33 @@ drop policy if exists plans_update_admin_manager on public.membership_plans;
 create policy plans_update_admin_manager on public.membership_plans
 for update to authenticated
 using (
-  gym_id = public.current_gym_id()
-  and public.has_gym_role(gym_id, array['admin', 'manager']::text[])
+  gym_id = private.current_gym_id()
+  and private.has_gym_role(gym_id, array['admin', 'manager']::text[])
 )
 with check (
-  gym_id = public.current_gym_id()
-  and public.has_gym_role(gym_id, array['admin', 'manager']::text[])
+  gym_id = private.current_gym_id()
+  and private.has_gym_role(gym_id, array['admin', 'manager']::text[])
 );
 
 drop policy if exists plans_delete_admin_manager on public.membership_plans;
 create policy plans_delete_admin_manager on public.membership_plans
 for delete to authenticated
 using (
-  gym_id = public.current_gym_id()
-  and public.has_gym_role(gym_id, array['admin', 'manager']::text[])
+  gym_id = private.current_gym_id()
+  and private.has_gym_role(gym_id, array['admin', 'manager']::text[])
 );
 
 drop policy if exists members_read_workspace on public.gym_members;
 create policy members_read_workspace on public.gym_members
 for select to authenticated
-using (gym_id = public.current_gym_id());
+using (gym_id = private.current_gym_id());
 
 drop policy if exists members_insert_admin_manager on public.gym_members;
 create policy members_insert_admin_manager on public.gym_members
 for insert to authenticated
 with check (
-  gym_id = public.current_gym_id()
-  and public.has_gym_role(gym_id, array['admin', 'manager']::text[])
+  gym_id = private.current_gym_id()
+  and private.has_gym_role(gym_id, array['admin', 'manager']::text[])
   and created_by = auth.uid()
 );
 
@@ -524,33 +529,33 @@ drop policy if exists members_update_admin_manager on public.gym_members;
 create policy members_update_admin_manager on public.gym_members
 for update to authenticated
 using (
-  gym_id = public.current_gym_id()
-  and public.has_gym_role(gym_id, array['admin', 'manager']::text[])
+  gym_id = private.current_gym_id()
+  and private.has_gym_role(gym_id, array['admin', 'manager']::text[])
 )
 with check (
-  gym_id = public.current_gym_id()
-  and public.has_gym_role(gym_id, array['admin', 'manager']::text[])
+  gym_id = private.current_gym_id()
+  and private.has_gym_role(gym_id, array['admin', 'manager']::text[])
 );
 
 drop policy if exists members_delete_admin_manager on public.gym_members;
 create policy members_delete_admin_manager on public.gym_members
 for delete to authenticated
 using (
-  gym_id = public.current_gym_id()
-  and public.has_gym_role(gym_id, array['admin', 'manager']::text[])
+  gym_id = private.current_gym_id()
+  and private.has_gym_role(gym_id, array['admin', 'manager']::text[])
 );
 
 drop policy if exists dues_read_workspace on public.membership_dues;
 create policy dues_read_workspace on public.membership_dues
 for select to authenticated
-using (gym_id = public.current_gym_id());
+using (gym_id = private.current_gym_id());
 
 drop policy if exists dues_insert_admin_manager on public.membership_dues;
 create policy dues_insert_admin_manager on public.membership_dues
 for insert to authenticated
 with check (
-  gym_id = public.current_gym_id()
-  and public.has_gym_role(gym_id, array['admin', 'manager']::text[])
+  gym_id = private.current_gym_id()
+  and private.has_gym_role(gym_id, array['admin', 'manager']::text[])
   and created_by = auth.uid()
 );
 
@@ -558,33 +563,33 @@ drop policy if exists dues_update_admin_manager on public.membership_dues;
 create policy dues_update_admin_manager on public.membership_dues
 for update to authenticated
 using (
-  gym_id = public.current_gym_id()
-  and public.has_gym_role(gym_id, array['admin', 'manager']::text[])
+  gym_id = private.current_gym_id()
+  and private.has_gym_role(gym_id, array['admin', 'manager']::text[])
 )
 with check (
-  gym_id = public.current_gym_id()
-  and public.has_gym_role(gym_id, array['admin', 'manager']::text[])
+  gym_id = private.current_gym_id()
+  and private.has_gym_role(gym_id, array['admin', 'manager']::text[])
 );
 
 drop policy if exists dues_delete_admin_manager on public.membership_dues;
 create policy dues_delete_admin_manager on public.membership_dues
 for delete to authenticated
 using (
-  gym_id = public.current_gym_id()
-  and public.has_gym_role(gym_id, array['admin', 'manager']::text[])
+  gym_id = private.current_gym_id()
+  and private.has_gym_role(gym_id, array['admin', 'manager']::text[])
 );
 
 drop policy if exists payments_read_workspace on public.payments;
 create policy payments_read_workspace on public.payments
 for select to authenticated
-using (gym_id = public.current_gym_id());
+using (gym_id = private.current_gym_id());
 
 drop policy if exists payments_insert_members on public.payments;
 create policy payments_insert_members on public.payments
 for insert to authenticated
 with check (
-  gym_id = public.current_gym_id()
-  and public.has_gym_role(gym_id, array['admin', 'manager', 'staff']::text[])
+  gym_id = private.current_gym_id()
+  and private.has_gym_role(gym_id, array['admin', 'manager', 'staff']::text[])
   and created_by = auth.uid()
 );
 
@@ -592,20 +597,20 @@ drop policy if exists payments_update_admin_manager on public.payments;
 create policy payments_update_admin_manager on public.payments
 for update to authenticated
 using (
-  gym_id = public.current_gym_id()
-  and public.has_gym_role(gym_id, array['admin', 'manager']::text[])
+  gym_id = private.current_gym_id()
+  and private.has_gym_role(gym_id, array['admin', 'manager']::text[])
 )
 with check (
-  gym_id = public.current_gym_id()
-  and public.has_gym_role(gym_id, array['admin', 'manager']::text[])
+  gym_id = private.current_gym_id()
+  and private.has_gym_role(gym_id, array['admin', 'manager']::text[])
 );
 
 drop policy if exists payments_delete_admin_manager on public.payments;
 create policy payments_delete_admin_manager on public.payments
 for delete to authenticated
 using (
-  gym_id = public.current_gym_id()
-  and public.has_gym_role(gym_id, array['admin', 'manager']::text[])
+  gym_id = private.current_gym_id()
+  and private.has_gym_role(gym_id, array['admin', 'manager']::text[])
 );
 
 -- Keep the default PostgREST grants explicit. User/profile/role writes are server-only.
@@ -623,7 +628,7 @@ create policy repcount_files_read_workspace on storage.objects
 for select to authenticated
 using (
   bucket_id = 'repcount-files'
-  and (storage.foldername(name))[1] = public.current_gym_id()::text
+  and (storage.foldername(name))[1] = private.current_gym_id()::text
 );
 
 drop policy if exists repcount_files_insert_workspace on storage.objects;
@@ -631,7 +636,7 @@ create policy repcount_files_insert_workspace on storage.objects
 for insert to authenticated
 with check (
   bucket_id = 'repcount-files'
-  and (storage.foldername(name))[1] = public.current_gym_id()::text
+  and (storage.foldername(name))[1] = private.current_gym_id()::text
 );
 
 drop policy if exists repcount_files_update_workspace on storage.objects;
@@ -639,11 +644,11 @@ create policy repcount_files_update_workspace on storage.objects
 for update to authenticated
 using (
   bucket_id = 'repcount-files'
-  and (storage.foldername(name))[1] = public.current_gym_id()::text
+  and (storage.foldername(name))[1] = private.current_gym_id()::text
 )
 with check (
   bucket_id = 'repcount-files'
-  and (storage.foldername(name))[1] = public.current_gym_id()::text
+  and (storage.foldername(name))[1] = private.current_gym_id()::text
 );
 
 drop policy if exists repcount_files_delete_workspace on storage.objects;
@@ -651,5 +656,5 @@ create policy repcount_files_delete_workspace on storage.objects
 for delete to authenticated
 using (
   bucket_id = 'repcount-files'
-  and (storage.foldername(name))[1] = public.current_gym_id()::text
+  and (storage.foldername(name))[1] = private.current_gym_id()::text
 );
