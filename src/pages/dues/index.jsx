@@ -13,7 +13,7 @@ export const nav={label:'Dues',icon:'CalendarClock',order:2,profiles:['Admin_c',
 const money=value=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(Number(value||0));
 const key=date=>{const y=date.getFullYear();const m=String(date.getMonth()+1).padStart(2,'0');const d=String(date.getDate()).padStart(2,'0');return `${y}-${m}-${d}`;};
 function monday(date){const copy=new Date(date.getFullYear(),date.getMonth(),date.getDate());copy.setDate(copy.getDate()-((copy.getDay()+6)%7));return copy;}
-const { and, or, contains, gt, eq, ne, lte, lt } = window.ApperSDK.CoreSDK;
+const { and, or, contains, gt, eq, ne, lte, lt } = window.RepCountSDK.CoreSDK;
 const periods = [['today', 'Today'], ['week', 'Rest of week'], ['overdue', 'Overdue'], ['all', 'All unpaid']];
 export default function Dues(){
  const [search,setSearch]=useState('');
