@@ -97,11 +97,26 @@ export default function AuthPage({ mode }) {
       <AuthLayout title="Unable to connect" icon="WifiOff">
         <div className="text-center space-y-4">
           <p className="text-sm text-muted-foreground">
-            Authentication service is unreachable. This may be due to a network issue or CORS configuration.
+            {!sdk.isConfigured ? 'Supabase is not configured for this deployment. Add VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in Vercel, then redeploy.' : 'Authentication service is unreachable. Check the Supabase project URL and network connection.'}
           </p>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button variant="outline" onClick={handleRetry} disabled={loading} className="w-full">
             {loading ? 'Retrying…' : 'Retry'}
+          </Button>
+        </div>
+      </AuthLayout>
+    );
+  }
+
+  if (mode === 'signup') {
+    return (
+      <AuthLayout title="Account access is managed by your Admin" description="RepCount accounts are created by your gym administrator. Public self-sign-up is disabled.">
+        <div className="space-y-4">
+          <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+            Ask your RepCount Admin to create an account and assign your role. Public self-sign-up and email verification are not used for Admin-created accounts.
+          </div>
+          <Button asChild className="w-full">
+            <Link to="/login">Back to sign in</Link>
           </Button>
         </div>
       </AuthLayout>
@@ -202,13 +217,9 @@ function AuthFooter({ mode, profilePrefix, altLinksLeadIn, altLinks }) {
     <div className="mt-8 space-y-5">
       <p className="text-[13px] text-center text-muted-foreground">
         {mode === 'login' ? (
-          <>Don&apos;t have an account?{' '}
-            <Link to={`${base}/signup`} className="text-primary font-medium hover:underline underline-offset-4 transition-colors">Sign up</Link>
-          </>
+          <>Need access? Ask your gym's administrator to create your account.</>
         ) : (
-          <>Already have an account?{' '}
-            <Link to={`${base}/login`} className="text-primary font-medium hover:underline underline-offset-4 transition-colors">Sign in</Link>
-          </>
+          <>Accounts are created by your administrator.</>
         )}
       </p>
       {altLinks?.length > 0 && (
