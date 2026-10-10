@@ -26,12 +26,59 @@
     <div id="root"><div id="app-loading"><div class="ring"></div><span id="app-loading-name"></span></div></div>
     <script>document.getElementById('app-loading-name').textContent = document.title;</script>
     <script>
-      // The boot loader stays until React mounts and the Supabase session resolves. Say so after a few seconds
-      // instead of looking frozen; the whole block is removed with #root's children on first render.
+      // Keep the pre-React loader useful if a runtime/configuration error prevents React from mounting.
       (function () {
-        function note(text) { var el = document.getElementById('app-loading'); if (!el) return; var p = el.querySelector('.note'); if (!p) { p = document.createElement('span'); p.className = 'note'; p.style.cssText = 'font-size:12px;opacity:.7;max-width:22rem;text-align:center'; el.appendChild(p); } p.textContent = text; }
-        setTimeout(function () { note('Starting up\u2026 the first open can take a few seconds.'); }, 3000);
-        setTimeout(function () { note('Still loading. If this continues, check your connection and refresh.'); }, 12000);
+        function getLoader() { return document.getElementById('app-loading'); }
+        function note(text) {
+          var el = getLoader();
+          if (!el) return;
+          var p = el.querySelector('.note');
+          if (!p) {
+            p = document.createElement('span');
+            p.className = 'note';
+            p.style.cssText = 'font-size:12px;opacity:.8;max-width:24rem;text-align:center;overflow-wrap:anywhere';
+            el.appendChild(p);
+          }
+          p.textContent = text;
+        }
+        function showStartupFailure(reason) {
+          var el = getLoader();
+          if (!el) return;
+          note(reason || 'The application could not finish starting.');
+          var hint = el.querySelector('.startup-help');
+          if (!hint) {
+            hint = document.createElement('p');
+            hint.className = 'startup-help';
+            hint.style.cssText = 'font-size:12px;line-height:1.5;max-width:27rem;text-align:center;color:#777';
+            hint.textContent = 'Check Vercel → Settings → Environment Variables for VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY, then redeploy. If both are set, open the browser console and inspect the first red error.';
+            el.appendChild(hint);
+          }
+          var button = el.querySelector('.startup-retry');
+          if (!button) {
+            button = document.createElement('button');
+            button.className = 'startup-retry';
+            button.type = 'button';
+            button.textContent = 'Reload application';
+            button.style.cssText = 'margin-top:4px;padding:9px 14px;border:1px solid #888;border-radius:6px;background:transparent;color:inherit;font:inherit;cursor:pointer';
+            button.addEventListener('click', function () { window.location.reload(); });
+            el.appendChild(button);
+          }
+        }
+        window.addEventListener('error', function (event) {
+          if (event.target && event.target !== window) {
+            showStartupFailure('A required application script or asset failed to load.');
+            return;
+          }
+          if (event.message) showStartupFailure('Application startup error: ' + event.message);
+        }, true);
+        window.addEventListener('unhandledrejection', function (event) {
+          var reason = event.reason && event.reason.message ? event.reason.message : '';
+          showStartupFailure(reason ? 'Application startup request failed: ' + reason : 'An application startup request failed.');
+        });
+        setTimeout(function () { note('Starting up… the first open can take a few seconds.'); }, 3000);
+        setTimeout(function () {
+          if (getLoader()) showStartupFailure('RepCount did not finish starting. The browser console can identify the exact runtime error.');
+        }, 12000);
       })();
     </script>
     <script type="module" src="/src/main.jsx"></script>
