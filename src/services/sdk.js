@@ -73,6 +73,77 @@ function requireSupabase() {
   return supabase;
 }
 
+const LOGIN_BROWSER_ID_KEY = 'repcount.login-browser-id.v1';
+const LOGIN_LOCK_UNTIL_KEY = 'repcount.login-lock-until.v1';
+let fallbackBrowserId = null;
+
+function getLoginBrowserId() {
+  try {
+    const stored = window.localStorage.getItem(LOGIN_BROWSER_ID_KEY);
+    if (stored && /^[A-Za-z0-9_-]{24,100}$/.test(stored)) return stored;
+  } catch { /* server-side limits remain authoritative */ }
+  if (!fallbackBrowserId) {
+    const bytes = new Uint8Array(24);
+    if (globalThis.crypto?.getRandomValues) {
+      globalThis.crypto.getRandomValues(bytes);
+      fallbackBrowserId = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+    } else {
+      fallbackBrowserId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+    }
+  }
+  try { window.localStorage.setItem(LOGIN_BROWSER_ID_KEY, fallbackBrowserId); } catch { /* continue */ }
+  return fallbackBrowserId;
+}
+
+function getLocalLoginLock() {
+  try {
+    const raw = window.localStorage.getItem(LOGIN_LOCK_UNTIL_KEY);
+    const until = raw ? Date.parse(raw) : NaN;
+    if (Number.isFinite(until) && until > Date.now()) return new Date(until).toLocaleString();
+    window.localStorage.removeItem(LOGIN_LOCK_UNTIL_KEY);
+  } catch { /* server lock remains authoritative */ }
+  return null;
+}
+
+function persistLocalLoginLock(lockedUntil) {
+  try {
+    if (lockedUntil && Number.isFinite(Date.parse(lockedUntil))) {
+      window.localStorage.setItem(LOGIN_LOCK_UNTIL_KEY, lockedUntil);
+    }
+  } catch { /* ignore storage restrictions */ }
+}
+
+async function readSecureLoginError(error) {
+  try {
+    const response = error?.context;
+    if (response?.clone) return await response.clone().json();
+    if (response?.json) return await response.json();
+  } catch { /* use a generic message */ }
+  return null;
+}
+
+function formatSecureLoginError(body) {
+  if (body?.code === 'LOGIN_LOCKED') {
+    persistLocalLoginLock(body.lockedUntil);
+    const until = body.lockedUntil && Number.isFinite(Date.parse(body.lockedUntil))
+      ? new Date(body.lockedUntil).toLocaleString() : null;
+    return until ? `Too many failed attempts. This browser is blocked until ${until}.`
+      : 'Too many failed attempts. This browser is blocked for 24 hours.';
+  }
+  if (body?.code === 'INVALID_CREDENTIALS') {
+    const remaining = Number(body.attemptsRemaining);
+    if (Number.isFinite(remaining) && remaining > 0) {
+      return `Invalid email or password. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining before this browser is locked for 24 hours.`;
+    }
+    return 'Invalid email or password. This browser has been locked for 24 hours.';
+  }
+  if (body?.code === 'ACCOUNT_NOT_ASSIGNED') {
+    return 'Your credentials are valid, but this account has no active RepCount workspace. Contact the workspace administrator.';
+  }
+  if (body?.code === 'LOGIN_SECURITY_UNAVAILABLE') return 'Secure sign-in is temporarily unavailable. Please try again later.';
+  return typeof body?.message === 'string' ? body.message : 'Sign-in failed. Please check your credentials and try again.';
+}
+
 function toDbField(field) {
   if (field === 'Id' || field === 'id') return 'id';
   if (field === 'Name') return 'name';
@@ -594,34 +665,50 @@ const session = {
   async login({ email, password }) {
     try {
       const client = requireSupabase();
-      const { data, error } = await client.auth.signInWithPassword({
-        email: String(email ?? '').trim().toLowerCase(),
-        password: String(password ?? ''),
-      });
-      if (error || !data.user) {
-        return { ok: false, error: { message: error?.message ?? 'Sign in failed.' } };
+      const localLockUntil = getLocalLoginLock();
+      if (localLockUntil) {
+        return { ok: false, error: { message: `Too many failed attempts. This browser is blocked until ${localLockUntil}.` } };
       }
-      const appUser = await resolveAppUser(data.user);
+      const { data, error } = await client.functions.invoke('secure-login', {
+        body: {
+          email: String(email ?? '').trim().toLowerCase(),
+          password: String(password ?? ''),
+          browserId: getLoginBrowserId(),
+        },
+      });
+      if (error) {
+        const body = await readSecureLoginError(error);
+        return { ok: false, error: { message: formatSecureLoginError(body), code: body?.code } };
+      }
+      if (data?.error || !data?.session?.access_token || !data?.session?.refresh_token) {
+        return { ok: false, error: { message: formatSecureLoginError(data), code: data?.code } };
+      }
+      const { data: sessionData, error: sessionError } = await client.auth.setSession({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      });
+      if (sessionError || !sessionData.session) {
+        return { ok: false, error: { message: 'Secure sign-in could not establish a session. Please try again.' } };
+      }
+      const { data: verifiedData, error: verifiedError } = await client.auth.getUser();
+      if (verifiedError || !verifiedData.user) {
+        await client.auth.signOut();
+        return { ok: false, error: { message: 'The sign-in session could not be verified. Please try again.' } };
+      }
+      const appUser = await resolveAppUser(verifiedData.user);
       if (!appUser) {
         await client.auth.signOut();
-        return {
-          ok: false,
-          error: { message: 'This account has no active RepCount workspace. Ask your Admin to assign access.' },
-        };
+        cachedAppUser = null;
+        cachedAuthUserId = null;
+        return { ok: false, error: { message: 'Your account has no active RepCount workspace. Contact the workspace administrator.' } };
       }
+      try { window.localStorage.removeItem(LOGIN_LOCK_UNTIL_KEY); } catch { /* ignore */ }
       cachedAppUser = appUser;
-      cachedAuthUserId = data.user.id;
+      cachedAuthUserId = verifiedData.user.id;
       return { ok: true, value: appUser };
     } catch (error) {
-      return { ok: false, error: { message: error instanceof Error ? error.message : 'Sign in failed.' } };
+      return { ok: false, error: { message: error instanceof Error ? error.message : 'Secure sign-in is temporarily unavailable.' } };
     }
-  },
-
-  async register() {
-    return {
-      ok: false,
-      error: { message: 'Public sign-up is disabled. Ask your RepCount Admin to create your account.' },
-    };
   },
 
   async logout() {
@@ -632,61 +719,7 @@ const session = {
     if (error) throw error;
   },
 
-  async sendResetLink({ email }) {
-    try {
-      const client = requireSupabase();
-      const redirectTo = typeof window !== 'undefined'
-        ? window.location.origin + '/reset-password'
-        : undefined;
-      const { error } = await client.auth.resetPasswordForEmail(
-        String(email ?? '').trim().toLowerCase(),
-        redirectTo ? { redirectTo } : undefined,
-      );
-      if (error) return { ok: false, error: { message: error.message } };
-      return { ok: true };
-    } catch (error) {
-      return { ok: false, error: { message: error instanceof Error ? error.message : 'Password reset failed.' } };
-    }
-  },
 
-  async resetPassword({ newPassword }) {
-    try {
-      const client = requireSupabase();
-      const { error } = await client.auth.updateUser({ password: newPassword });
-      if (error) return { ok: false, error: { message: error.message } };
-      return { ok: true };
-    } catch (error) {
-      return { ok: false, error: { message: error instanceof Error ? error.message : 'Password reset failed.' } };
-    }
-  },
-
-  async changePassword({ currentPassword, newPassword }) {
-    try {
-      const client = requireSupabase();
-      const { data: userData, error: userError } = await client.auth.getUser();
-      if (userError || !userData.user?.email) {
-        return { ok: false, error: { message: 'Your session expired. Sign in again.' } };
-      }
-      const checked = await client.auth.signInWithPassword({
-        email: userData.user.email,
-        password: String(currentPassword ?? ''),
-      });
-      if (checked.error) {
-        return { ok: false, error: { message: 'Your current password is incorrect.' } };
-      }
-      const changed = await client.auth.updateUser({ password: String(newPassword ?? '') });
-      if (changed.error) {
-        return { ok: false, error: { message: changed.error.message } };
-      }
-      return { ok: true };
-    } catch (error) {
-      return { ok: false, error: { message: error instanceof Error ? error.message : 'Password change failed.' } };
-    }
-  },
-
-  async verifyEmail() {
-    return { ok: false, error: { message: 'Email verification is not part of the Admin-created account workflow.' } };
-  },
 };
 
 const teams = {

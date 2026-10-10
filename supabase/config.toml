@@ -2,3 +2,7 @@ project_id = "pnhpkraqsahpebjiynwz"
 
 [functions.admin-users]
 verify_jwt = true
+
+[functions.secure-login]
+# Pre-login endpoint verifies credentials itself because no JWT exists yet.
+verify_jwt = false

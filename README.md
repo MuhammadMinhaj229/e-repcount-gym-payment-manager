@@ -4,11 +4,11 @@ RepCount is a mobile-first gym-owner workspace for membership plans, member reco
 
 ## Backend migration status
 
-This version removes the Apper SDK runtime and replaces it with Supabase Auth, PostgreSQL, Storage, a server-side user-management function and a Supabase-backed query adapter.
+This version removes the Apper SDK runtime and uses Supabase Auth, PostgreSQL, Storage, a server-side user-management function and a Supabase-backed query adapter.
 
-**The migration is staged, not yet connected to production.** The SQL migration and first-admin bootstrap must be applied to the Supabase project, the `admin-users` Edge Function must be deployed, and the new Vercel environment variables must be set before this branch is merged/deployed to the live site.
+The schema and security migrations are applied to the Supabase project, and the initial Admin has an active workspace membership. The application code in this branch is a proposed single-login/lockout hardening update; it must pass CI and be deployed through Vercel before the browser can use it.
 
-The old MemoryAdapter seed data and demo login seed are removed from this branch. Do not merge/deploy until the initial Admin account has been bootstrapped and the build has been tested.
+The old MemoryAdapter seed data and demo login seed are removed. Only `/login` is intended as a public sign-in page.
 
 ## Architecture
 
@@ -17,7 +17,8 @@ The old MemoryAdapter seed data and demo login seed are removed from this branch
 - **Database:** Supabase PostgreSQL with per-gym `gym_id` scopes, role rules and Row Level Security (RLS).
 - **Roles:** Admin, Manager and Staff. Admin manages accounts and roles. Manager can manage membership operations. Staff can read gym records and record payments.
 - **Payment consistency:** a PostgreSQL trigger recalculates fee-cycle paid amount, balance and status within the same transaction as payment inserts/updates/deletes.
-- **User administration:** `supabase/functions/admin-users/index.ts` validates the caller's Supabase JWT and requires an active Admin role before creating confirmed accounts, changing roles, listing accounts or deleting accounts. The service-role credential is server-side only.
+- **User administration:** `supabase/functions/admin-users/index.ts` validates the caller's Supabase JWT and requires an active Admin role before creating confirmed accounts, assigning roles, listing accounts or deleting accounts. Privileged credentials remain server-side.
+- **Login abuse controls:** `supabase/functions/secure-login/index.ts` checks a private database lock bucket before verifying credentials. Three failed attempts lock that browser/network fingerprint for 24 hours. It stores only an HMAC fingerprint, never the email, password or raw IP address, and never logs credentials or returned tokens.
 
 ## First-time Supabase setup
 
@@ -32,9 +33,7 @@ Open the Supabase Dashboard → **SQL Editor** → **New query**. Run these migr
 3. `supabase/migrations/202610100003_move_tenant_helpers_private.sql`
 4. `supabase/migrations/202610100004_fix_workspace_link_trigger.sql`
 
-The initial schema creates the business tables, indexes, per-gym RLS policies, relationship checks, payment-reconciliation triggers and dashboard-summary RPC. The follow-up migrations harden function grants, keep tenant helpers outside the API-exposed `public` schema and fix the member/dues relationship trigger. The latest trigger fix is already applied in the live Supabase project.
-
-Do not run business CRUD until all four scripts succeed without SQL errors.
+The initial schema creates the business tables, per-gym RLS policies, relationship checks, payment-reconciliation triggers and dashboard-summary RPC. The follow-up migrations harden function grants, keep tenant helpers outside the API-exposed `public` schema, fix relationship validation, add the private login lock table, add foreign-key indexes, and optimize row-level security policies. These migrations have already been applied to the live Supabase project. For a fresh project, run all six files in order and verify each completes without SQL errors.
 
 ### 2. Create the first Admin
 
@@ -51,15 +50,14 @@ npm install
 npx supabase login
 npx supabase link --project-ref pnhpkraqsahpebjiynwz
 npx supabase functions deploy admin-users
+npx supabase functions deploy secure-login
 ```
 
 Supabase Edge Functions receive their project URL and privileged server environment from Supabase. Do not copy the service-role/secret key into a `VITE_*` variable, frontend source or GitHub. Keep the function's JWT verification enabled. The function additionally calls Supabase Auth to validate the signed-in user and checks their active Admin role.
 
 ### 4. Configure Supabase Auth
 
-In Supabase Authentication settings, disable **Allow new users to sign up**. The app's public signup page is informational only; only the server-side Admin function can create new accounts.
-
-Set the production Site URL and allowed redirect URLs to your actual Vercel/custom domain. Include the deployed `/reset-password` URL and your local development reset URL if you test locally. Admin-created users do not need an email-verification link.
+In Supabase Authentication settings, disable **Allow new users to sign up**. RepCount intentionally exposes only `/login`; create accounts and assign roles through the Admin-managed workflow. The `secure-login` function has gateway JWT verification disabled only because a user has no JWT before password sign-in; the function verifies the password through Supabase Auth and checks active workspace membership before returning tokens. Its CORS allow-list includes Vercel deployments and localhost for development. If using a custom domain, set the exact origin in the server-side `APP_ALLOWED_ORIGINS` Edge Function secret.
 
 ### 5. Set Vercel environment variables
 
@@ -80,6 +78,7 @@ Redeploy after saving these values. These are the only Supabase configuration va
 6. Add multiple payments, edit/refund/delete a payment and confirm the fee-cycle balance follows the paid payment ledger.
 7. Confirm a user in a different gym cannot access the first gym's rows, even by guessing record IDs.
 8. Confirm the last active Admin and the currently signed-in account cannot be deleted/demoted through Settings.
+9. In a staging project or with a disposable test account, verify three invalid sign-ins trigger a 24-hour lock. Do not intentionally lock the production Admin.
 
 ## Local development
 
@@ -106,4 +105,5 @@ The simplified home screen shows only three headline metrics: outstanding fees, 
 - The original Apper CDN script, MemoryAdapter and mock row-policy loader are removed from the migration branch.
 - Account passwords are never stored in RepCount business tables.
 - Business tables reference users only through Supabase Auth IDs and the private `gym_users` role mapping.
-- Public signup is disabled; user administration is done server-side and role assignments are never accepted directly from the browser.
+- Public signup and password-recovery pages are removed; user administration is server-side and role assignments are never accepted directly from the browser.
+- Three failed sign-in attempts trigger a server-side 24-hour lock for the browser/network fingerprint. Local storage is only a usability aid; the database lock is the enforcement boundary. This complements Supabase's native rate limits. It does not revoke already-active sessions and cannot make the application invulnerable to every attack.
