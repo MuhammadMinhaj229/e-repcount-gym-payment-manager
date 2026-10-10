@@ -420,6 +420,18 @@ revoke all on function public.normalize_due_balance() from public;
 revoke all on function public.dashboard_summary(date) from public;
 grant execute on function public.dashboard_summary(date) to authenticated;
 
+-- Explicitly remove Supabase's per-role default function grants.
+-- Trigger functions are not API endpoints and must never be exposed through RPC.
+revoke execute on function public.current_gym_id() from anon;
+revoke execute on function public.has_gym_role(uuid, text[]) from anon;
+revoke execute on function public.dashboard_summary(date) from anon;
+revoke execute on function public.touch_updated_at() from anon, authenticated;
+revoke execute on function public.normalize_due_balance() from anon, authenticated;
+revoke execute on function public.validate_workspace_links() from anon, authenticated;
+revoke execute on function public.validate_payment() from anon, authenticated;
+revoke execute on function public.recalculate_due_from_payments(uuid, uuid) from anon, authenticated;
+revoke execute on function public.sync_due_after_payment_change() from anon, authenticated;
+
 -- Enable RLS everywhere that contains application or workspace data.
 alter table public.gyms enable row level security;
 alter table public.profiles enable row level security;
