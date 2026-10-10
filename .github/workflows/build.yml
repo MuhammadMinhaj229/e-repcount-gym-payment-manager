@@ -36,5 +36,13 @@ jobs:
             echo "Found an Apper runtime or mock-data reference."
             exit 1
           fi
+      - name: Set up Python for SQL parsing
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate SQL migration syntax
+        run: |
+          python -m pip install --quiet pglast
+          python -c "from pglast import parse_sql; [parse_sql(open(path, encoding='utf-8').read()) for path in ['supabase/migrations/202610100001_initial_schema.sql', 'supabase/bootstrap_admin.sql']]; print('Supabase SQL parsed successfully')"
       - name: Type-check Admin Edge Function
         run: deno check supabase/functions/admin-users/index.ts
