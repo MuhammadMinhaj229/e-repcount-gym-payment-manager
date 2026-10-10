@@ -5,24 +5,11 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import ApperIcon from '@/components/ApperIcon';
-import ProviderAuthPage from './ProviderAuthPage';
 import AuthLayout from './AuthLayout';
 
 export default function ForgotPassword() {
-  const hasUI = Boolean(sdk.session.ui);
-
-  if (hasUI) {
-    return (
-      <ProviderAuthPage
-        targetId="forgot-password-target"
-        mount={(t) => sdk.session.ui.showLogin(t)}
-      />
-    );
-  }
-
   return <HeadlessForgotPassword />;
 }
-
 function HeadlessForgotPassword() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);

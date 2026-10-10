@@ -1,30 +1,22 @@
-import { sdk } from '@/services/sdk';
-import ProviderAuthPage from './ProviderAuthPage';
+import { Link } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 import AuthLayout from './AuthLayout';
 
 export default function AcceptInvitation() {
-  const hasUI = !!sdk.session.ui;
-
-  if (hasUI) {
-    return (
-      <ProviderAuthPage
-        title="Accept Invitation"
-        description="Set up your account to join the team"
-        targetId="accept-invitation-target"
-        mount={(t) => sdk.session.ui.showAcceptInvitation(t)}
-      />
-    );
-  }
-
   return (
     <AuthLayout
-      title="Accept Invitation"
-      icon="UserPlus"
-      description="Set up your account to join the team. The invitation token is read from the URL automatically."
+      title="Accounts are managed by your Admin"
+      icon="ShieldCheck"
+      description="RepCount uses direct account creation rather than email invitations."
     >
-      <p className="text-sm text-muted-foreground text-center">
-        Once processed, you will be redirected to the dashboard.
-      </p>
+      <div className="space-y-4">
+        <p className="text-center text-sm leading-6 text-muted-foreground">
+          Ask your gym administrator to create your account and assign your role. The administrator will share your initial password through a private channel.
+        </p>
+        <Button asChild className="w-full">
+          <Link to="/login">Go to sign in</Link>
+        </Button>
+      </div>
     </AuthLayout>
   );
 }

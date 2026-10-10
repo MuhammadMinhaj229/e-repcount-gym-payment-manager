@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import ApperIcon from '@/components/ApperIcon';
-import { adjustFeeCycleForPayment, currentMockOwner, localDateInputValue, logMutationError } from '@/utils/repcount';
+import { localDateInputValue, logMutationError } from '@/utils/repcount';
 
 export const route = { path: '/payments/new', layout: 'owner', access: "profile === 'Admin_c' || profile === 'Manager_c' || profile === 'Staff_c'" };
 
@@ -16,6 +16,7 @@ export default function NewPayment() {
   const { data: members } = useFetch(
     () => sdk.table('gym_members_c')
       .select(['Id', 'Name', 'phone_c', 'plan_c'])
+      .page(1, 100)
       .fetch()
       .then(result => {
         if (!result.success) throw new Error(result.message);
@@ -26,6 +27,7 @@ export default function NewPayment() {
   const { data: dues } = useFetch(
     () => sdk.table('membership_dues_c')
       .select(['Id', 'Name', 'member_c', 'balance_c', 'status_c'])
+      .page(1, 100)
       .fetch()
       .then(result => {
         if (!result.success) throw new Error(result.message);
@@ -98,7 +100,7 @@ export default function NewPayment() {
         method_c: form.method_c,
         status_c: form.status_c,
         notes_c: form.notes_c,
-        Owner: currentMockOwner(sdk),
+
       });
 
       if (result.messages?.length) {
@@ -113,18 +115,8 @@ export default function NewPayment() {
         return;
       }
 
-      let balanceUpdated = true;
-      if (linkedDue && form.status_c === 'Paid') {
-        try {
-          await adjustFeeCycleForPayment(sdk, linkedDue.Id, amount);
-        } catch (syncError) {
-          balanceUpdated = false;
-          logMutationError('fee cycle balance', 'update after payment', syncError);
-          toast.warning('Payment recorded, but the fee-cycle balance needs review.');
-        }
-      }
-
-      toast.success(balanceUpdated ? 'Payment recorded' : 'Payment saved');
+      // The Supabase database trigger reconciles paid payments to fee-cycle balances atomically.
+      toast.success('Payment recorded');
       navigate(`/payments/${result.data[0].Id}`);
     } catch (error) {
       toast.error(error.message || 'Could not record payment');

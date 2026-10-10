@@ -69,6 +69,14 @@ yarn-error.log*
 # Vercel
 .vercel
 
+# Supabase local-only state (never commit linked-project tokens or local runtime data)
+supabase/.temp/
+supabase/.branches/
+supabase/.env
+
+# Local Supabase CLI state
+/supabase/.temp/
+
 # Local Netlify folder
 .netlify
 

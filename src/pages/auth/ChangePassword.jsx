@@ -4,7 +4,6 @@ import ApperIcon from '@/components/ApperIcon';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import ProviderAuthPage from './ProviderAuthPage';
 import AuthLayout from './AuthLayout';
 
 export const route = {
@@ -14,17 +13,6 @@ export const route = {
 };
 
 export default function ChangePassword() {
-  const hasUI = Boolean(sdk.session.ui);
-
-  if (hasUI) {
-    return (
-      <ProviderAuthPage
-        targetId="change-password-target"
-        mount={(t) => sdk.session.ui.showChangePassword(t)}
-      />
-    );
-  }
-
   return <HeadlessChangePassword />;
 }
 

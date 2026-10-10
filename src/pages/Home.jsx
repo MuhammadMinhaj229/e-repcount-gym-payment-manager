@@ -14,7 +14,7 @@ export const route = {
 };
 export const nav = { label: 'Overview', icon: 'LayoutDashboard', order: 0 };
 
-const { and, eq, gt, ne } = window.ApperSDK.CoreSDK;
+const { and, eq, gt, ne } = window.RepCountSDK.CoreSDK;
 
 const money = value => new Intl.NumberFormat('en-IN', {
   style: 'currency',
@@ -28,12 +28,6 @@ const dateKey = date => {
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
-
-function aggregateNumber(result, id) {
-  const aggregate = result.aggregators?.find(item => item.id === id);
-  const value = aggregate?.data?.count ?? aggregate?.count ?? aggregate?.value ?? 0;
-  return Number(value) || 0;
-}
 
 async function fetchAllTodayDues(today) {
   const records = [];
@@ -98,30 +92,11 @@ export default function Home() {
   });
 
   const {
-    data: duesSummary,
-    loading: duesSummaryLoading,
-    error: duesSummaryError,
-    run: reloadDuesSummary,
-  } = useFetch(
-    async () => {
-      const filters = and(gt('balance_c', 0), ne('status_c', 'Waived'));
-      const todayFilters = and(eq('due_date_c', today), gt('balance_c', 0), ne('status_c', 'Waived'));
-      const result = await sdk.table('membership_dues_c')
-        .select([{ field: 'Id' }])
-        .aggregate([
-          { id: 'outstanding', fields: [{ field: 'balance_c', fn: 'Sum', alias: 'count' }], where: filters },
-          { id: 'dueTodayBalance', fields: [{ field: 'balance_c', fn: 'Sum', alias: 'count' }], where: todayFilters },
-        ])
-        .limit(1)
-        .fetch();
-      if (!result.success) throw new Error(result.message || 'Could not calculate outstanding dues.');
-      return {
-        outstanding: aggregateNumber(result, 'outstanding'),
-        dueTodayBalance: aggregateNumber(result, 'dueTodayBalance'),
-      };
-    },
-    [today],
-  );
+    data: summary,
+    loading: summaryLoading,
+    error: summaryError,
+    run: reloadSummary,
+  } = useFetch(() => sdk.dashboardSummary(today), [today]);
 
   const {
     data: dueTodayData,
@@ -129,30 +104,6 @@ export default function Home() {
     error: dueTodayError,
     run: reloadDueToday,
   } = useFetch(() => fetchAllTodayDues(today), [today]);
-
-  const {
-    data: paymentsSummary,
-    loading: paymentsLoading,
-    error: paymentsError,
-    run: reloadPayments,
-  } = useFetch(
-    async () => {
-      const result = await sdk.table('payments_c')
-        .select([{ field: 'Id' }])
-        .aggregate([
-          {
-            id: 'collectedToday',
-            fields: [{ field: 'amount_c', fn: 'Sum', alias: 'count' }],
-            where: and(eq('status_c', 'Paid'), eq('paid_on_c', today)),
-          },
-        ])
-        .limit(1)
-        .fetch();
-      if (!result.success) throw new Error(result.message || 'Could not calculate today’s collections.');
-      return { collectedToday: aggregateNumber(result, 'collectedToday') };
-    },
-    [today],
-  );
 
   const todayRows = dueTodayData?.rows ?? [];
   const dueTodayMembers = Object.values(todayRows.reduce((groups, row) => {
@@ -198,40 +149,35 @@ export default function Home() {
         <MetricCard
           to="/dues?view=all"
           label="Outstanding fees"
-          value={money(duesSummary?.outstanding)}
+          value={money(summary?.outstanding)}
           detail="Review pending collections"
           icon="Wallet"
-          loading={duesSummaryLoading}
+          loading={summaryLoading}
         />
         <MetricCard
           to="/payments?period=today"
           label="Collected today"
-          value={money(paymentsSummary?.collectedToday)}
+          value={money(summary?.collectedToday)}
           detail="View today's payments"
           icon="CircleCheck"
           tone="success"
-          loading={paymentsLoading}
+          loading={summaryLoading}
         />
         <MetricCard
           to="/dues?view=today"
           label="Members due today"
           value={dueTodayLoading ? '—' : dueTodayMembers.length}
-          detail={`${money(duesSummary?.dueTodayBalance)} to collect today`}
+          detail={`${money(summary?.dueTodayBalance)} to collect today`}
           icon="CalendarCheck"
           tone="danger"
-          loading={duesSummaryLoading || dueTodayLoading}
+          loading={summaryLoading || dueTodayLoading}
         />
       </section>
 
-      {(duesSummaryError || paymentsError) && (
+      {summaryError && (
         <section role="alert" className="flex flex-col justify-between gap-3 rounded-lg border border-border p-4 sm:flex-row sm:items-center">
-          <p className="text-sm text-muted-foreground">
-            {duesSummaryError ? `Dues summary: ${duesSummaryError.message}` : `Payment summary: ${paymentsError.message}`}
-          </p>
-          <div className="flex gap-2">
-            {duesSummaryError && <Button variant="outline" onClick={reloadDuesSummary}>Retry dues</Button>}
-            {paymentsError && <Button variant="outline" onClick={reloadPayments}>Retry payments</Button>}
-          </div>
+          <p className="text-sm text-muted-foreground">Dashboard summary could not be loaded. {summaryError.message}</p>
+          <Button variant="outline" onClick={reloadSummary}>Retry summary</Button>
         </section>
       )}
 

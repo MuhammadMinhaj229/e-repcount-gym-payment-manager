@@ -1,0 +1,48 @@
+name: RepCount build check
+
+on:
+  push:
+    branches:
+      - main
+      - supabase-migration
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Install and build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install
+      - name: Build production bundle
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: https://example.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_build_check_placeholder
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+      - name: Assert no Apper runtime remains
+        shell: bash
+        run: |
+          if grep -R -n -E 'window\.ApperSDK|VITE_APPER_|MemoryAdapter|ApperAdapter|currentMockOwner' src index.html; then
+            echo "Found an Apper runtime or mock-data reference."
+            exit 1
+          fi
+      - name: Set up Python for SQL parsing
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate SQL migration syntax
+        run: |
+          python -m pip install --quiet pglast
+          python -c "from pglast import parse_sql; [parse_sql(open(path, encoding='utf-8').read()) for path in ['supabase/migrations/202610100001_initial_schema.sql', 'supabase/bootstrap_admin.sql']]; print('Supabase SQL parsed successfully')"
+      - name: Type-check Admin Edge Function
+        run: deno check supabase/functions/admin-users/index.ts

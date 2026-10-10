@@ -5,26 +5,11 @@ import ApperIcon from '@/components/ApperIcon';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import ProviderAuthPage from './ProviderAuthPage';
 import AuthLayout from './AuthLayout';
 
 export default function ResetPassword() {
-  const hasUI = Boolean(sdk.session.ui);
-
-  if (hasUI) {
-    return (
-      <ProviderAuthPage
-        title="Reset Password"
-        description="Set your new password below"
-        targetId="reset-target"
-        mount={(t) => sdk.session.ui?.showResetPassword?.(t)}
-      />
-    );
-  }
-
   return <HeadlessResetPassword />;
 }
-
 function HeadlessResetPassword() {
   const [params] = useSearchParams();
   const token = params.get('token') || '';
