@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import ApperIcon from '@/components/ApperIcon';
-import { adjustFeeCycleForPayment, currentMockOwner, localDateInputValue, logMutationError } from '@/utils/repcount';
+import { adjustFeeCycleForPayment, localDateInputValue, logMutationError } from '@/utils/repcount';
 
 export const route = { path: '/payments/new', layout: 'owner', access: "profile === 'Admin_c' || profile === 'Manager_c' || profile === 'Staff_c'" };
 
@@ -98,7 +98,7 @@ export default function NewPayment() {
         method_c: form.method_c,
         status_c: form.status_c,
         notes_c: form.notes_c,
-        Owner: currentMockOwner(sdk),
+
       });
 
       if (result.messages?.length) {
