@@ -7,13 +7,13 @@ const corsHeaders = {
   "Content-Type": "application/json",
 };
 
-const ROLE_TO_DB = {
+const ROLE_TO_DB: Record<string, string> = {
   Admin_c: "admin",
   Manager_c: "manager",
   Staff_c: "staff",
 };
 
-const DB_TO_ROLE = {
+const DB_TO_ROLE: Record<string, string> = {
   admin: "Admin_c",
   manager: "Manager_c",
   staff: "Staff_c",
