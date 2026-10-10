@@ -4,7 +4,7 @@ RepCount is a mobile-first gym-owner workspace for membership plans, member reco
 
 ## Backend migration status
 
-This branch removes the Apper SDK runtime and replaces it with Supabase Auth, PostgreSQL, Storage, a server-side user-management function and a Supabase-backed query adapter.
+This version removes the Apper SDK runtime and replaces it with Supabase Auth, PostgreSQL, Storage, a server-side user-management function and a Supabase-backed query adapter.
 
 **The migration is staged, not yet connected to production.** The SQL migration and first-admin bootstrap must be applied to the Supabase project, the `admin-users` Edge Function must be deployed, and the new Vercel environment variables must be set before this branch is merged/deployed to the live site.
 
