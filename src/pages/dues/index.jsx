@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useFetch } from '@/hooks/useFetch';
 import { sdk } from '@/services/sdk';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,8 @@ const { and, or, contains, gt, eq, ne, lte, lt } = window.ApperSDK.CoreSDK;
 const periods = [['today', 'Today'], ['week', 'Rest of week'], ['overdue', 'Overdue'], ['all', 'All unpaid']];
 export default function Dues(){
  const [search,setSearch]=useState('');
- const [view,setView]=useState('today');
+ const [searchParams,setSearchParams]=useSearchParams();
+ const [view,setView]=useState(()=>periods.some(([value])=>value===searchParams.get('view'))?searchParams.get('view'):'today');
  const [page, setPage] = useState(1);
  const today = key(new Date());
  const weekEndDate = monday(new Date());
@@ -43,7 +44,7 @@ export default function Dues(){
      <Button asChild className="min-h-11 shrink-0 active:scale-[0.98]"><Link to="/payments/new"><ApperIcon name="Plus" size={16} className="mr-2"/>Record payment</Link></Button>
    </header>
    <div className="space-y-3">
-     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Due period">{periods.map(([value, label]) => <Button key={value} type="button" aria-pressed={view === value} variant={view === value ? 'default' : 'outline'} className="min-h-11 active:scale-[0.98]" onClick={() => setView(value)}>{label}</Button>)}</div>
+     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Due period">{periods.map(([value, label]) => <Button key={value} type="button" aria-pressed={view === value} variant={view === value ? 'default' : 'outline'} className="min-h-11 active:scale-[0.98]" onClick={() => { setView(value); setSearchParams({ view: value }, { replace: true }); }}>{label}</Button>)}</div>
      <Input aria-label="Search dues" className="min-h-11" placeholder="Search member or fee reference…" value={search} onChange={event => setSearch(event.target.value)}/>
      <p className="text-sm text-muted-foreground">{view === 'week' ? `After today through ${formatLocalDate(weekEnd, DATE_FORMATS.SHORT)}. Earlier unpaid dues are under Overdue.` : view === 'all' ? 'All unpaid dues, including upcoming dates.' : view === 'overdue' ? 'Unpaid dues with a date before today.' : 'Unpaid dues dated today.'}</p>
    </div>
