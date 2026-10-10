@@ -58,10 +58,14 @@ export default function AuthPage({ mode = 'login' }) {
 
   if (sdk.session.initFailed) {
     return (
-      <AuthLayout title="Supabase configuration required" description="RepCount needs its database configuration before you can sign in." icon="Database">
+      <AuthLayout
+        title="Supabase configuration required"
+        description={sdk.session.configurationError || 'RepCount needs its database configuration before you can sign in.'}
+        icon="Database"
+      >
         <div className="space-y-4">
           <p className="rounded-lg border border-border bg-muted/40 p-4 text-sm leading-6 text-muted-foreground">
-            Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in Vercel's Production environment and redeploy. Do not add a service-role key to the frontend.
+            {sdk.session.configurationError || "Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in Vercel's Production environment and redeploy. Do not add a service-role key to the frontend."}
           </p>
           <Button variant="outline" className="w-full" onClick={() => window.location.reload()}>Retry after redeploy</Button>
         </div>
