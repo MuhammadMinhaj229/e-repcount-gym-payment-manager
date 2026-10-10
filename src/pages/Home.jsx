@@ -6,8 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import ApperIcon from '@/components/ApperIcon';
+import { useProfile } from '@/hooks/useProfile';
+import { getTableAccess } from '@/services/userPermissions';
 
-export const route = { path: '/', layout: 'owner', access: 'authenticated' };
+export const route = { path: '/', layout: 'owner', access: "profile === 'Admin_c' || profile === 'Manager_c' || profile === 'Staff_c'" };
 export const nav = { label: 'Overview', icon: 'LayoutDashboard', order: 0 };
 
 const money = value => new Intl.NumberFormat('en-IN', {
@@ -63,6 +65,8 @@ function Metric({ label, value, detail, icon, onClick, tone = 'neutral' }) {
 export default function Home() {
   const [activeBucket, setActiveBucket] = useState('today');
   const [search, setSearch] = useState('');
+  const { profile } = useProfile();
+  const { canCreate: canCreateMember } = getTableAccess(profile, 'gym_members_c');
   const { data: dues, loading: duesLoading, error: duesError, run: reloadDues } = useFetch(
     () => sdk.table('membership_dues_c')
       .select(['Id', 'Name', 'member_c', 'plan_c', 'due_date_c', 'amount_due_c', 'amount_paid_c', 'balance_c', 'status_c'])
@@ -126,9 +130,9 @@ export default function Home() {
           <Button asChild variant="outline" className="min-h-11">
             <Link to="/dues"><ApperIcon name="CalendarClock" size={16} className="mr-2" />View dues</Link>
           </Button>
-          <Button asChild className="min-h-11">
+          {canCreateMember && <Button asChild className="min-h-11">
             <Link to="/members/new"><ApperIcon name="UserPlus" size={16} className="mr-2" />Add member</Link>
-          </Button>
+          </Button>}
         </div>
       </section>
 
