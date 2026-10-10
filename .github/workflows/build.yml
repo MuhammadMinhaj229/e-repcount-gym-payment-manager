@@ -27,3 +27,7 @@ jobs:
         env:
           VITE_SUPABASE_URL: https://example.supabase.co
           VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_build_check_placeholder
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+      - name: Type-check Admin Edge Function
+        run: deno check supabase/functions/admin-users/index.ts
