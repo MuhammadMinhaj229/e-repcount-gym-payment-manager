@@ -249,6 +249,7 @@ declare
   due_gym_id uuid;
   due_member_id uuid;
   due_amount numeric(12,2);
+  due_status text;
   paid_other_payments numeric(12,2);
 begin
   if new.member_c is not null and not exists (
@@ -259,8 +260,8 @@ begin
   end if;
 
   if new.due_c is not null then
-    select d.gym_id, d.member_c, d.amount_due_c
-      into due_gym_id, due_member_id, due_amount
+    select d.gym_id, d.member_c, d.amount_due_c, d.status_c
+      into due_gym_id, due_member_id, due_amount, due_status
     from public.membership_dues d
     where d.id = new.due_c
     for update;
@@ -271,6 +272,10 @@ begin
 
     if new.member_c is not null and due_member_id <> new.member_c then
       raise exception 'The payment member must match the fee-cycle member.';
+    end if;
+
+    if new.status_c = 'Paid' and due_status = 'Waived' then
+      raise exception 'A waived fee cycle cannot accept a payment.';
     end if;
 
     if new.status_c = 'Paid' then
