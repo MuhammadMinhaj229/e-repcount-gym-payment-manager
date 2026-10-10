@@ -98,6 +98,13 @@ export default function Home() {
     run: reloadSummary,
   } = useFetch(() => sdk.dashboardSummary(today), [today]);
 
+  const {
+    data: dueTodayData,
+    loading: dueTodayLoading,
+    error: dueTodayError,
+    run: reloadDueToday,
+  } = useFetch(() => fetchAllTodayDues(today), [today]);
+
   const todayRows = dueTodayData?.rows ?? [];
   const dueTodayMembers = Object.values(todayRows.reduce((groups, row) => {
     const memberId = row.member_c?.Id || `unlinked-${row.Id}`;
