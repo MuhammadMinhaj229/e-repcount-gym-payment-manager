@@ -7,8 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import ApperIcon from '@/components/ApperIcon';
 import { ListSkeleton } from '@/components/PageSkeleton';
-export const route = { path: '/payments', layout: 'owner', access: 'authenticated' };
-export const nav = { label: 'Payments', icon: 'Wallet', order: 3 };
+export const route = { path: '/payments', layout: 'owner', access: "profile === 'Admin_c' || profile === 'Manager_c' || profile === 'Staff_c'" };
+export const nav = { label: 'Payments', icon: 'Wallet', order: 3, profiles: ['Admin_c','Manager_c','Staff_c'] };
 const money = value => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Number(value || 0));
 export default function Payments() {
  const [search,setSearch]=useState('');
