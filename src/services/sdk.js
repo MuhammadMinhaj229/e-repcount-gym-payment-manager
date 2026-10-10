@@ -612,6 +612,30 @@ const session = {
     }
   },
 
+  async changePassword({ currentPassword, newPassword }) {
+    try {
+      const client = requireSupabase();
+      const { data: userData, error: userError } = await client.auth.getUser();
+      if (userError || !userData.user?.email) {
+        return { ok: false, error: { message: 'Your session expired. Sign in again.' } };
+      }
+      const checked = await client.auth.signInWithPassword({
+        email: userData.user.email,
+        password: String(currentPassword ?? ''),
+      });
+      if (checked.error) {
+        return { ok: false, error: { message: 'Your current password is incorrect.' } };
+      }
+      const changed = await client.auth.updateUser({ password: String(newPassword ?? '') });
+      if (changed.error) {
+        return { ok: false, error: { message: changed.error.message } };
+      }
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: { message: error instanceof Error ? error.message : 'Password change failed.' } };
+    }
+  },
+
   async verifyEmail() {
     return { ok: false, error: { message: 'Email verification is not part of the Admin-created account workflow.' } };
   },
