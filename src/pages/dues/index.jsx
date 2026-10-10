@@ -15,7 +15,7 @@ export const nav={label:'Dues',icon:'CalendarClock',order:2,profiles:['Admin_c',
 const money=value=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(Number(value||0));
 const key=date=>{const y=date.getFullYear();const m=String(date.getMonth()+1).padStart(2,'0');const d=String(date.getDate()).padStart(2,'0');return `${y}-${m}-${d}`;};
 function monday(date){const copy=new Date(date.getFullYear(),date.getMonth(),date.getDate());copy.setDate(copy.getDate()-((copy.getDay()+6)%7));return copy;}
-const { and, or, contains, gt, eq, ne, lte, lt } = window.RepCountSDK.CoreSDK;
+const { and, or, contains, gt, eq, ne, lte, lt, isIn } = window.RepCountSDK.CoreSDK;
 const periods = [['today', 'Today'], ['week', 'Rest of week'], ['overdue', 'Overdue'], ['all', 'All unpaid']];
 export default function Dues(){
  const { profile } = useProfile();
@@ -34,7 +34,19 @@ export default function Dues(){
    if (view === 'today') filters.push(eq('due_date_c', today));
    if (view === 'week') filters.push(gt('due_date_c', today), lte('due_date_c', weekEnd));
    if (view === 'overdue') filters.push(lt('due_date_c', today));
-   if (search.trim()) filters.push(or(contains('member_c', search.trim()), contains('Name', search.trim())));
+   if (search.trim()) {
+     const term = search.trim();
+     const matchingMembers = await sdk.table('gym_members_c')
+       .select(['Id'])
+       .where(or(contains('Name', term), contains('phone_c', term)))
+       .limit(1000, 0)
+       .fetch();
+     if (!matchingMembers.success) throw new Error(matchingMembers.message || 'Could not search members.');
+     const searchClauses = [contains('Name', term)];
+     const memberIds = matchingMembers.data.map(member => member.Id);
+     if (memberIds.length) searchClauses.push(isIn('member_c', memberIds));
+     filters.push(or(...searchClauses));
+   }
    const result = await sdk.table('membership_dues_c')
      .select(['Id', 'Name', 'member_c', { field: 'member_c', ref: 'phone_c' }, 'plan_c', 'due_date_c', 'balance_c'])
      .where(and(...filters)).orderBy('due_date_c').page(page, 25).fetch();
