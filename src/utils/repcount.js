@@ -63,3 +63,22 @@ export async function adjustFeeCycleForPayment(sdk, dueId, delta) {
 
   return updated.data[0];
 }
+
+/**
+ * Adds the signed-in demo owner to new mock records so the mock row policies
+ * can display records created during the current session.
+ * This is only for the MemoryAdapter showcase; production writes should let
+ * the connected backend assign and enforce ownership.
+ */
+export function currentMockOwner(sdk) {
+  const user = sdk?.session?.user?.();
+  const ownerId = user?.Id;
+  if (!ownerId) {
+    throw new Error('Your session is not ready. Sign in again and retry.');
+  }
+  const fullName = [user?.FirstName, user?.LastName].filter(Boolean).join(' ');
+  return {
+    Id: String(ownerId),
+    Name: user?.Name || fullName || user?.name || user?.emailAddress || user?.Email || 'Gym Owner',
+  };
+}
