@@ -15,7 +15,7 @@ import { getTableAccess } from '@/services/userPermissions';
 export const route = { path: '/members/:id', layout: 'owner', access: "profile === 'Admin_c' || profile === 'Manager_c' || profile === 'Staff_c'" };
 const memberFields = ['Id','Name','phone_c','email_c','plan_c','join_date_c','due_date_c','status_c','notes_c'];
 const money = value => new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(Number(value||0));
-const { eq } = window.ApperSDK.CoreSDK;
+const { eq } = window.RepCountSDK.CoreSDK;
 
 async function fetchAllMemberRows(tableName, fields, memberId) {
   const records = [];
