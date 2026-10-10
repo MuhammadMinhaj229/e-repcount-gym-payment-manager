@@ -25,13 +25,14 @@ Use the Supabase project intended for RepCount. Do not paste keys or passwords i
 
 ### 1. Apply the schema
 
-Open the Supabase Dashboard → **SQL Editor** → **New query**. Copy and run the full contents of:
+Open the Supabase Dashboard → **SQL Editor** → **New query**. Run these migration files in order:
 
-`supabase/migrations/202610100001_initial_schema.sql`
+1. `supabase/migrations/202610100001_initial_schema.sql`
+2. `supabase/migrations/202610100002_harden_function_privileges.sql`
 
-It creates the business tables, indexes, workspace helper functions, RLS policies, same-gym relationship checks, the payment-reconciliation triggers and the dashboard-summary RPC.
+The first creates the business tables, indexes, workspace helper functions, RLS policies, same-gym relationship checks, payment-reconciliation triggers and dashboard-summary RPC. The second removes anonymous access to application RPCs and blocks direct RPC execution of trigger/internal routines while retaining the required authenticated helper calls.
 
-Do not run business CRUD until this succeeds without SQL errors.
+Do not run business CRUD until both scripts succeed without SQL errors.
 
 ### 2. Create the first Admin
 
