@@ -112,7 +112,7 @@ returns uuid
 language sql
 stable
 security definer
-set search_path = public
+set search_path = ''
 as $$
   select gu.gym_id
   from public.gym_users gu
@@ -126,7 +126,7 @@ returns boolean
 language sql
 stable
 security definer
-set search_path = public
+set search_path = ''
 as $$
   select exists (
     select 1
@@ -146,7 +146,7 @@ grant execute on function public.has_gym_role(uuid, text[]) to authenticated;
 create or replace function public.touch_updated_at()
 returns trigger
 language plpgsql
-set search_path = public
+set search_path = ''
 as $$
 begin
   new.updated_at = now();
@@ -172,7 +172,7 @@ $$;
 create or replace function public.normalize_due_balance()
 returns trigger
 language plpgsql
-set search_path = public
+set search_path = ''
 as $$
 begin
   if new.status_c = 'Waived' then
@@ -204,7 +204,7 @@ create or replace function public.validate_workspace_links()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $
 begin
   if new.plan_c is not null and not exists (
@@ -243,7 +243,7 @@ create or replace function public.validate_payment()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 declare
   due_gym_id uuid;
@@ -302,7 +302,7 @@ create or replace function public.recalculate_due_from_payments(target_due_id uu
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 declare
   due_amount numeric(12,2);
@@ -346,7 +346,7 @@ create or replace function public.sync_due_after_payment_change()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 begin
   if tg_op = 'DELETE' then
@@ -374,7 +374,7 @@ returns jsonb
 language sql
 stable
 security invoker
-set search_path = public
+set search_path = ''
 as $$
   select jsonb_build_object(
     'outstanding',
