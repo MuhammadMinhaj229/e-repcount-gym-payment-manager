@@ -1,16 +1,20 @@
-import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useFetch } from '@/hooks/useFetch';
 import { sdk } from '@/services/sdk';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import ApperIcon from '@/components/ApperIcon';
 import { useProfile } from '@/hooks/useProfile';
 import { getTableAccess } from '@/services/userPermissions';
 
-export const route = { path: '/', layout: 'owner', access: "profile === 'Admin_c' || profile === 'Manager_c' || profile === 'Staff_c'" };
+export const route = {
+  path: '/',
+  layout: 'owner',
+  access: "profile === 'Admin_c' || profile === 'Manager_c' || profile === 'Staff_c'",
+};
 export const nav = { label: 'Overview', icon: 'LayoutDashboard', order: 0 };
+
+const { and, eq, gt, ne } = window.ApperSDK.CoreSDK;
 
 const money = value => new Intl.NumberFormat('en-IN', {
   style: 'currency',
@@ -25,244 +29,278 @@ const dateKey = date => {
   return `${year}-${month}-${day}`;
 };
 
-const startOfWeek = date => {
-  const value = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const offset = (value.getDay() + 6) % 7;
-  value.setDate(value.getDate() - offset);
-  return value;
-};
+function aggregateNumber(result, id) {
+  const aggregate = result.aggregators?.find(item => item.id === id);
+  const value = aggregate?.data?.count ?? aggregate?.count ?? aggregate?.value ?? 0;
+  return Number(value) || 0;
+}
 
-const endOfWeek = date => {
-  const value = startOfWeek(date);
-  value.setDate(value.getDate() + 6);
-  return value;
-};
+async function fetchAllTodayDues(today) {
+  const records = [];
+  let page = 1;
+  let total = 0;
+  while (true) {
+    const result = await sdk.table('membership_dues_c')
+      .select(['Id', 'Name', 'member_c', { field: 'member_c', ref: 'phone_c' }, 'due_date_c', 'balance_c', 'status_c'])
+      .where(and(eq('due_date_c', today), gt('balance_c', 0), ne('status_c', 'Waived')))
+      .orderBy('due_date_c')
+      .page(page, 100)
+      .fetch();
+    if (!result.success) throw new Error(result.message || 'Could not load dues for today.');
+    records.push(...result.data);
+    total = result.total ?? records.length;
+    if (!result.hasMore) return { rows: records, total };
+    page += 1;
+  }
+}
 
-const formatDate = value => value ? new Date(`${value}T12:00:00`).toLocaleDateString('en-IN', {
-  day: 'numeric',
-  month: 'short',
-}) : 'Not set';
+function MetricCard({ to, label, value, detail, icon, tone = 'neutral', loading = false }) {
+  const toneClass = tone === 'danger'
+    ? 'bg-destructive/10 text-destructive'
+    : tone === 'success'
+      ? 'bg-success-muted text-success'
+      : 'bg-secondary text-secondary-foreground';
 
-function Metric({ label, value, detail, icon, onClick, tone = 'neutral' }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="min-h-36 w-full rounded-lg border border-border bg-card p-4 text-left shadow-xs transition hover:-translate-y-0.5 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    <Link
+      to={to}
+      className="group block min-h-36 rounded-xl border border-border bg-card p-5 shadow-xs transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      aria-label={`${label}. ${loading ? 'Loading' : value}. ${detail}. Open details`}
     >
-      <div className="flex items-start justify-between gap-2">
-        <span className="text-sm font-medium text-muted-foreground">{label}</span>
-        <span className={`rounded-md p-2 ${tone === 'danger' ? 'bg-destructive/10 text-destructive' : tone === 'warning' ? 'bg-warning-muted text-warning-foreground' : tone === 'success' ? 'bg-success-muted text-success' : 'bg-secondary text-secondary-foreground'}`}>
-          <ApperIcon name={icon} size={18} />
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm font-medium text-muted-foreground">{label}</p>
+        <span className={`rounded-lg p-2 ${toneClass}`}>
+          <ApperIcon name={icon} size={19} />
         </span>
       </div>
-      <p className="mt-3 font-heading text-3xl font-bold tracking-tight">{value}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
-    </button>
+      {loading
+        ? <Skeleton className="mt-4 h-9 w-32" />
+        : <p className="mt-3 font-heading text-3xl font-bold tracking-tight">{value}</p>}
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">{detail}</p>
+        <ApperIcon name="ArrowUpRight" size={16} className="shrink-0 text-muted-foreground transition group-hover:text-primary" />
+      </div>
+    </Link>
   );
 }
 
 export default function Home() {
-  const [activeBucket, setActiveBucket] = useState('today');
-  const [search, setSearch] = useState('');
   const { profile } = useProfile();
   const { canCreate: canCreateMember } = getTableAccess(profile, 'gym_members_c');
-  const { data: dues, loading: duesLoading, error: duesError, run: reloadDues } = useFetch(
-    () => sdk.table('membership_dues_c')
-      .select(['Id', 'Name', 'member_c', 'plan_c', 'due_date_c', 'amount_due_c', 'amount_paid_c', 'balance_c', 'status_c'])
-      .fetch()
-      .then(result => {
-        if (!result.success) throw new Error(result.message);
-        return result.data;
-      }),
-    [],
-  );
-  const { data: payments, loading: paymentsLoading } = useFetch(
-    () => sdk.table('payments_c')
-      .select(['Id', 'Name', 'member_c', 'amount_c', 'paid_on_c', 'status_c'])
-      .fetch()
-      .then(result => {
-        if (!result.success) throw new Error(result.message);
-        return result.data;
-      }),
-    [],
-  );
-  const todayDate = new Date();
-  const today = dateKey(todayDate);
-  const weekEnd = dateKey(endOfWeek(todayDate));
-  const weekStart = dateKey(startOfWeek(todayDate));
-  const feeRows = dues ?? [];
-  const paymentRows = payments ?? [];
-  const outstanding = feeRows.filter(row => Number(row.balance_c || 0) > 0 && row.status_c !== 'Waived');
-  const todayRows = outstanding.filter(row => row.due_date_c === today);
-  const thisWeekRows = outstanding.filter(row => row.due_date_c > today && row.due_date_c <= weekEnd);
-  const overdueRows = outstanding.filter(row => row.due_date_c < today);
-  const collectedToday = paymentRows
-    .filter(row => row.status_c === 'Paid' && row.paid_on_c === today)
-    .reduce((sum, row) => sum + Number(row.amount_c || 0), 0);
-  const totalOutstanding = outstanding.reduce((sum, row) => sum + Number(row.balance_c || 0), 0);
-  const bucketMap = { today: todayRows, week: thisWeekRows, overdue: overdueRows };
-  const bucketRows = bucketMap[activeBucket] ?? todayRows;
-  const visibleRows = useMemo(() => bucketRows
-    .filter(row => !search || `${row.member_c?.Name || ''} ${row.member_c?.phone_c || ''} ${row.Name || ''}`.toLowerCase().includes(search.toLowerCase()))
-    .sort((a, b) => (a.due_date_c || '').localeCompare(b.due_date_c || '')), [bucketRows, search]);
-  const collectedThisWeek = paymentRows
-    .filter(row => row.status_c === 'Paid' && row.paid_on_c >= weekStart && row.paid_on_c <= today)
-    .reduce((sum, row) => sum + Number(row.amount_c || 0), 0);
+  const { canCreate: canCreatePayment } = getTableAccess(profile, 'payments_c');
 
-  const metrics = [
-    { id: 'today', label: 'Due today', count: todayRows.length, balance: money(todayRows.reduce((sum, row) => sum + Number(row.balance_c || 0), 0)), icon: 'CalendarCheck', tone: 'danger', detail: 'Needs attention today' },
-    { id: 'week', label: 'Due later this week', count: thisWeekRows.length, balance: money(thisWeekRows.reduce((sum, row) => sum + Number(row.balance_c || 0), 0)), icon: 'CalendarDays', tone: 'warning', detail: `Through ${formatDate(weekEnd)}` },
-    { id: 'overdue', label: 'Overdue', count: overdueRows.length, balance: money(overdueRows.reduce((sum, row) => sum + Number(row.balance_c || 0), 0)), icon: 'AlertCircle', tone: 'danger', detail: 'Past the due date' },
-  ];
+  const now = new Date();
+  const today = dateKey(now);
+  const dateLabel = now.toLocaleDateString('en-IN', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+
+  const {
+    data: duesSummary,
+    loading: duesSummaryLoading,
+    error: duesSummaryError,
+    run: reloadDuesSummary,
+  } = useFetch(
+    async () => {
+      const filters = and(gt('balance_c', 0), ne('status_c', 'Waived'));
+      const todayFilters = and(eq('due_date_c', today), gt('balance_c', 0), ne('status_c', 'Waived'));
+      const result = await sdk.table('membership_dues_c')
+        .select([{ field: 'Id' }])
+        .aggregate([
+          { id: 'outstanding', fields: [{ field: 'balance_c', fn: 'Sum', alias: 'count' }], where: filters },
+          { id: 'dueTodayBalance', fields: [{ field: 'balance_c', fn: 'Sum', alias: 'count' }], where: todayFilters },
+        ])
+        .limit(1)
+        .fetch();
+      if (!result.success) throw new Error(result.message || 'Could not calculate outstanding dues.');
+      return {
+        outstanding: aggregateNumber(result, 'outstanding'),
+        dueTodayBalance: aggregateNumber(result, 'dueTodayBalance'),
+      };
+    },
+    [today],
+  );
+
+  const {
+    data: dueTodayData,
+    loading: dueTodayLoading,
+    error: dueTodayError,
+    run: reloadDueToday,
+  } = useFetch(() => fetchAllTodayDues(today), [today]);
+
+  const {
+    data: paymentsSummary,
+    loading: paymentsLoading,
+    error: paymentsError,
+    run: reloadPayments,
+  } = useFetch(
+    async () => {
+      const result = await sdk.table('payments_c')
+        .select([{ field: 'Id' }])
+        .aggregate([
+          {
+            id: 'collectedToday',
+            fields: [{ field: 'amount_c', fn: 'Sum', alias: 'count' }],
+            where: and(eq('status_c', 'Paid'), eq('paid_on_c', today)),
+          },
+        ])
+        .limit(1)
+        .fetch();
+      if (!result.success) throw new Error(result.message || 'Could not calculate today’s collections.');
+      return { collectedToday: aggregateNumber(result, 'collectedToday') };
+    },
+    [today],
+  );
+
+  const todayRows = dueTodayData?.rows ?? [];
+  const dueTodayMembers = Object.values(todayRows.reduce((groups, row) => {
+    const memberId = row.member_c?.Id || `unlinked-${row.Id}`;
+    if (!groups[memberId]) {
+      groups[memberId] = {
+        id: row.member_c?.Id,
+        key: memberId,
+        name: row.member_c?.Name || 'Member',
+        phone: row.member_c?.phone_c || '',
+        balance: 0,
+        dueIds: [],
+      };
+    }
+    groups[memberId].balance += Number(row.balance_c || 0);
+    groups[memberId].dueIds.push(row.Id);
+    return groups;
+  }, {})).sort((a, b) => a.name.localeCompare(b.name));
 
   return (
-    <div className="space-y-6 pb-3">
-      <section className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+    <div className="space-y-6 pb-4">
+      <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.17em] text-primary">Gym owner workspace</p>
-          <h1 className="mt-2 font-heading text-2xl font-bold tracking-tight md:text-3xl">Collections at a glance</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {todayDate.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}. Here is what needs your attention.
-          </p>
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">Gym owner workspace</p>
+          <h1 className="mt-2 font-heading text-2xl font-bold tracking-tight md:text-3xl">Collections overview</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{dateLabel}. Here is today's collection at a glance.</p>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex">
-          <Button asChild variant="outline" className="min-h-11">
-            <Link to="/dues"><ApperIcon name="CalendarClock" size={16} className="mr-2" />View dues</Link>
-          </Button>
-          {canCreateMember && <Button asChild className="min-h-11">
-            <Link to="/members/new"><ApperIcon name="UserPlus" size={16} className="mr-2" />Add member</Link>
-          </Button>}
-        </div>
-      </section>
-
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-lg bg-primary p-5 text-primary-foreground shadow-md sm:col-span-2">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium text-primary-foreground/80">Total outstanding fees</p>
-              {duesLoading ? <Skeleton className="mt-4 h-10 w-40" /> : <p className="mt-2 font-heading text-4xl font-bold tracking-tight">{money(totalOutstanding)}</p>}
-              <p className="mt-2 text-xs text-primary-foreground/80">Only unpaid balances across membership fee cycles</p>
-            </div>
-            <ApperIcon name="Wallet" size={25} />
-          </div>
-          <Link to="/dues" className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-md bg-primary-foreground/10 px-3 text-sm font-semibold hover:bg-primary-foreground/20">
-            Review pending collections <ApperIcon name="ArrowUpRight" size={16} />
-          </Link>
-        </div>
-        <div className="rounded-lg border border-border bg-card p-5 shadow-xs">
-          <div className="flex items-center justify-between gap-2"><p className="text-sm font-medium text-muted-foreground">Collected today</p><span className="rounded-md bg-success-muted p-2 text-success"><ApperIcon name="CircleCheck" size={18} /></span></div>
-          {paymentsLoading ? <Skeleton className="mt-4 h-9 w-28" /> : <p className="mt-3 font-heading text-3xl font-bold">{money(collectedToday)}</p>}
-          <p className="mt-2 text-xs text-muted-foreground">Recorded payments for today</p>
-        </div>
-        <div className="rounded-lg border border-border bg-card p-5 shadow-xs">
-          <div className="flex items-center justify-between gap-2"><p className="text-sm font-medium text-muted-foreground">Collected this week</p><span className="rounded-md bg-secondary p-2 text-secondary-foreground"><ApperIcon name="TrendingUp" size={18} /></span></div>
-          {paymentsLoading ? <Skeleton className="mt-4 h-9 w-28" /> : <p className="mt-3 font-heading text-3xl font-bold">{money(collectedThisWeek)}</p>}
-          <p className="mt-2 text-xs text-muted-foreground">Monday to today</p>
-        </div>
-      </section>
-
-      <section className="grid gap-3 sm:grid-cols-3">
-        {metrics.map(metric => (
-          <Metric
-            key={metric.id}
-            label={metric.label}
-            value={duesLoading ? '—' : metric.count}
-            detail={duesLoading ? 'Loading fee records' : `${metric.balance} outstanding · ${metric.detail}`}
-            icon={metric.icon}
-            tone={metric.tone}
-            onClick={() => setActiveBucket(metric.id)}
-          />
-        ))}
-      </section>
-
-      <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-        <div className="border-b border-border p-4 md:p-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="font-heading text-lg font-bold">Collection follow-ups</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Select a due group to see the exact members to contact.</p>
-            </div>
+          {canCreateMember && (
             <Button asChild variant="outline" className="min-h-11">
+              <Link to="/members/new"><ApperIcon name="UserPlus" size={16} className="mr-2" />Add member</Link>
+            </Button>
+          )}
+          {canCreatePayment && (
+            <Button asChild className="min-h-11">
               <Link to="/payments/new"><ApperIcon name="Plus" size={16} className="mr-2" />Record payment</Link>
             </Button>
+          )}
+        </div>
+      </header>
+
+      <section className="grid gap-3 md:grid-cols-3" aria-label="Today's collection summary">
+        <MetricCard
+          to="/dues?view=all"
+          label="Outstanding fees"
+          value={money(duesSummary?.outstanding)}
+          detail="Review pending collections"
+          icon="Wallet"
+          loading={duesSummaryLoading}
+        />
+        <MetricCard
+          to="/payments?period=today"
+          label="Collected today"
+          value={money(paymentsSummary?.collectedToday)}
+          detail="View today's payments"
+          icon="CircleCheck"
+          tone="success"
+          loading={paymentsLoading}
+        />
+        <MetricCard
+          to="/dues?view=today"
+          label="Members due today"
+          value={dueTodayLoading ? '—' : dueTodayMembers.length}
+          detail={`${money(duesSummary?.dueTodayBalance)} to collect today`}
+          icon="CalendarCheck"
+          tone="danger"
+          loading={duesSummaryLoading || dueTodayLoading}
+        />
+      </section>
+
+      {(duesSummaryError || paymentsError) && (
+        <section role="alert" className="flex flex-col justify-between gap-3 rounded-lg border border-border p-4 sm:flex-row sm:items-center">
+          <p className="text-sm text-muted-foreground">
+            {duesSummaryError ? `Dues summary: ${duesSummaryError.message}` : `Payment summary: ${paymentsError.message}`}
+          </p>
+          <div className="flex gap-2">
+            {duesSummaryError && <Button variant="outline" onClick={reloadDuesSummary}>Retry dues</Button>}
+            {paymentsError && <Button variant="outline" onClick={reloadPayments}>Retry payments</Button>}
           </div>
-          <div className="mt-4 grid grid-cols-3 gap-2" role="tablist" aria-label="Filter fees by due period">
-            {[
-              { id: 'today', label: 'Today', count: todayRows.length },
-              { id: 'week', label: 'This week', count: thisWeekRows.length },
-              { id: 'overdue', label: 'Overdue', count: overdueRows.length },
-            ].map(tab => (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                aria-selected={activeBucket === tab.id}
-                onClick={() => setActiveBucket(tab.id)}
-                className={`min-h-12 rounded-md border px-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${activeBucket === tab.id ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground'}`}
-              >
-                {tab.label} <span className="ml-1 opacity-80">({duesLoading ? '…' : tab.count})</span>
-              </button>
-            ))}
+        </section>
+      )}
+
+      <section className="overflow-hidden rounded-xl border border-border bg-card">
+        <div className="flex flex-col justify-between gap-3 border-b border-border p-4 sm:flex-row sm:items-center md:p-5">
+          <div>
+            <h2 className="font-heading text-lg font-bold">Due today</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {dueTodayLoading ? 'Checking unpaid balances…' : `${dueTodayMembers.length} members with unpaid fees due today`}
+            </p>
           </div>
-          <div className="relative mt-3">
-            <ApperIcon name="Search" size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search member or fee reference…" className="min-h-11 pl-9" aria-label="Search follow-up members" />
-          </div>
+          <Button asChild variant="outline" className="min-h-10">
+            <Link to="/dues?view=today">View all due today <ApperIcon name="ArrowRight" size={15} className="ml-2" /></Link>
+          </Button>
         </div>
 
-        {duesError ? (
-          <div className="p-8 text-center">
-            <ApperIcon name="CircleAlert" size={28} className="mx-auto text-destructive" />
-            <p className="mt-3 font-semibold">Could not load membership dues</p>
-            <p className="mt-1 text-sm text-muted-foreground">{duesError.message}</p>
-            <Button className="mt-4" variant="outline" onClick={reloadDues}>Try again</Button>
+        {dueTodayLoading ? (
+          <div className="space-y-3 p-4" aria-label="Loading dues">
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
           </div>
-        ) : duesLoading ? (
-          <div className="space-y-3 p-4"><Skeleton className="h-16 w-full" /><Skeleton className="h-16 w-full" /><Skeleton className="h-16 w-full" /></div>
-        ) : visibleRows.length === 0 ? (
-          <div className="p-8 text-center md:p-12">
-            <ApperIcon name="CalendarCheck" size={30} className="mx-auto text-muted-foreground" />
-            <h3 className="mt-3 font-semibold">No unpaid fees in this view</h3>
-            <p className="mt-1 text-sm text-muted-foreground">Try another due period or check the dues page.</p>
-            <Button asChild variant="outline" className="mt-4"><Link to="/dues">Open dues register</Link></Button>
+        ) : dueTodayError ? (
+          <div role="alert" className="p-5">
+            <p className="text-sm font-medium">Today's dues could not be loaded.</p>
+            <p className="mt-1 text-sm text-muted-foreground">{dueTodayError.message}</p>
+            <Button variant="outline" className="mt-3" onClick={reloadDueToday}>Try again</Button>
+          </div>
+        ) : dueTodayMembers.length === 0 ? (
+          <div className="px-5 py-10 text-center">
+            <span className="mx-auto flex size-11 items-center justify-center rounded-full bg-success-muted text-success">
+              <ApperIcon name="CheckCircle2" size={22} />
+            </span>
+            <h3 className="mt-3 font-semibold">All clear for today</h3>
+            <p className="mt-1 text-sm text-muted-foreground">There are no unpaid membership fees due today.</p>
+            <Button asChild variant="outline" className="mt-4">
+              <Link to="/dues?view=all">Review all outstanding fees</Link>
+            </Button>
           </div>
         ) : (
           <div className="divide-y divide-border">
-            {visibleRows.map(row => {
-              const memberId = row.member_c?.Id;
-              const memberName = row.member_c?.Name || 'Unnamed member';
-              const phone = row.member_c?.phone_c || '';
-              const message = `Hi ${memberName}, this is a friendly reminder from your gym. Your membership fee balance is ${money(row.balance_c)}, due on ${row.due_date_c}. Please let us know if you would like to renew. Thank you!`;
-              const waUrl = `https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
-              return (
-                <article key={row.Id} className="border-l-4 border-l-primary px-4 py-4 transition hover:bg-muted/40 md:px-5">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary font-bold text-secondary-foreground">{memberName.split(' ').map(part => part[0]).slice(0, 2).join('')}</div>
-                    <div className="min-w-0 flex-1">
-                      <Link to={memberId ? `/members/${memberId}` : '/members'} className="break-words font-semibold hover:text-primary">{memberName}</Link>
-                      <p className="mt-1 text-xs text-muted-foreground">{row.plan_c?.Name || 'Membership'} · Due {formatDate(row.due_date_c)}</p>
-                      <p className="mt-2 text-xs text-muted-foreground">Fee {row.Name} · Paid {money(row.amount_paid_c || 0)} of {money(row.amount_due_c || 0)}</p>
-                      <p className="mt-1 text-sm font-semibold">Balance: {money(row.balance_c)}</p>
-                    </div>
+            {dueTodayMembers.slice(0, 5).map(member => (
+              <article key={member.key} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-secondary-foreground">
+                    {member.name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase()}
                   </div>
-                  <div className="mt-3 grid grid-cols-2 gap-2 pl-[52px]">
-                    <Button asChild variant="outline" className="min-h-10">
-                      <Link to={memberId ? `/members/${memberId}` : '/members'}><ApperIcon name="UserRound" size={15} className="mr-2" />Member</Link>
-                    </Button>
-                    <Button asChild className="min-h-10" disabled={!phone}>
-                      <a href={waUrl} target="_blank" rel="noreferrer"><ApperIcon name="MessageCircle" size={15} className="mr-2" />WhatsApp</a>
-                    </Button>
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-semibold">{member.name}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{member.phone || 'No phone number'}</p>
                   </div>
-                </article>
-              );
-            })}
+                </div>
+                <div className="flex items-center justify-between gap-3 sm:justify-end">
+                  <p className="font-heading text-base font-bold tabular-nums">{money(member.balance)}</p>
+                  <Button asChild variant="outline" size="sm" className="min-h-10">
+                    <Link to={member.id ? `/members/${member.id}` : `/dues/${member.dueIds[0]}`}>Review</Link>
+                  </Button>
+                </div>
+              </article>
+            ))}
+            {dueTodayMembers.length > 5 && (
+              <div className="border-t border-border bg-muted/20 px-4 py-3 text-center">
+                <Button asChild variant="link" className="min-h-10">
+                  <Link to="/dues?view=today">View all {dueTodayMembers.length} members due today</Link>
+                </Button>
+              </div>
+            )}
           </div>
         )}
-        <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3 text-xs text-muted-foreground">
-          <span>Week: {formatDate(weekStart)} – {formatDate(weekEnd)}</span>
-          <Link to="/dues" className="font-semibold text-primary hover:underline">Full dues register →</Link>
-        </div>
       </section>
     </div>
   );
