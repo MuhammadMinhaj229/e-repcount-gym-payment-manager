@@ -196,9 +196,48 @@ $$;
 
 drop trigger if exists normalize_due_balance on public.membership_dues;
 create trigger normalize_due_balance
-before insert or update of amount_due_c, amount_paid_c, status_c
+before insert or update
 on public.membership_dues
 for each row execute function public.normalize_due_balance();
+
+create or replace function public.validate_workspace_links()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $
+begin
+  if new.plan_c is not null and not exists (
+    select 1
+    from public.membership_plans p
+    where p.id = new.plan_c
+      and p.gym_id = new.gym_id
+  ) then
+    raise exception 'The selected membership plan does not belong to this gym.';
+  end if;
+
+  if tg_table_name = 'membership_dues' and not exists (
+    select 1
+    from public.gym_members m
+    where m.id = new.member_c
+      and m.gym_id = new.gym_id
+  ) then
+    raise exception 'The selected member does not belong to this gym.';
+  end if;
+
+  return new;
+end;
+$;
+
+drop trigger if exists validate_workspace_links on public.gym_members;
+create trigger validate_workspace_links
+before insert or update on public.gym_members
+for each row execute function public.validate_workspace_links();
+
+drop trigger if exists validate_workspace_links on public.membership_dues;
+create trigger validate_workspace_links
+before insert or update on public.membership_dues
+for each row execute function public.validate_workspace_links();
 
 create or replace function public.validate_payment()
 returns trigger
@@ -366,6 +405,14 @@ as $$
   )
 $$;
 
+revoke all on function public.validate_workspace_links() from public;
+revoke all on function public.validate_payment() from public;
+revoke all on function public.recalculate_due_from_payments(uuid, uuid) from public;
+revoke all on function public.sync_due_after_payment_change() from public;
+revoke all on function public.touch_updated_at() from public;
+revoke all on function public.normalize_due_balance() from public;
+
+revoke all on function public.dashboard_summary(date) from public;
 grant execute on function public.dashboard_summary(date) to authenticated;
 
 -- Enable RLS everywhere that contains application or workspace data.
