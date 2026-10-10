@@ -445,13 +445,20 @@ using (
     where other_user.user_id = profiles.id
       and other_user.gym_id = public.current_gym_id()
       and other_user.status = 'active'
+      and public.has_gym_role(other_user.gym_id, array['admin']::text[])
   )
 );
 
 drop policy if exists gym_users_read_workspace on public.gym_users;
 create policy gym_users_read_workspace on public.gym_users
 for select to authenticated
-using (gym_id = public.current_gym_id());
+using (
+  gym_id = public.current_gym_id()
+  and (
+    user_id = auth.uid()
+    or public.has_gym_role(gym_id, array['admin']::text[])
+  )
+);
 
 drop policy if exists plans_read_workspace on public.membership_plans;
 create policy plans_read_workspace on public.membership_plans
