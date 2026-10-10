@@ -7,6 +7,7 @@ import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import AlifGrowthFooter from '@/components/AlifGrowthFooter';
 
 const primaryLinks = [
   { label: 'Home', to: '/', icon: 'LayoutDashboard' },
@@ -60,7 +61,7 @@ export default function OwnerLayout() {
   const extraLinks = navItems.filter(item => item.to && !primaryLinks.some(link => link.to === item.to) && !secondaryLinks.some(link => link.to === item.to));
 
   return (
-    <div className="min-h-screen bg-background pb-20 text-foreground md:pb-0">
+    <div className="flex min-h-screen flex-col bg-background pb-20 text-foreground md:pb-0">
       <header className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 md:px-8">
           <Brand />
@@ -99,9 +100,10 @@ export default function OwnerLayout() {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-7xl px-4 py-5 md:px-8 md:py-8">
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-5 md:px-8 md:py-8">
         <ErrorBoundary><Outlet /></ErrorBoundary>
       </main>
+      <AlifGrowthFooter />
       <nav aria-label="Quick navigation" className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/98 px-1 pb-[env(safe-area-inset-bottom)] shadow-md md:hidden">
         <div className="mx-auto grid max-w-lg grid-cols-5 gap-1 py-2">
           {[...primaryLinks, { label: 'Plans', to: '/plans', icon: 'Layers' }].map((item, index) => (
