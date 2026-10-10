@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import ApperIcon from '@/components/ApperIcon';
 import { adjustFeeCycleForPayment, currentMockOwner, localDateInputValue, logMutationError } from '@/utils/repcount';
 
-export const route = { path: '/payments/new', layout: 'owner', access: 'authenticated' };
+export const route = { path: '/payments/new', layout: 'owner', access: "profile === 'Admin_c' || profile === 'Manager_c' || profile === 'Staff_c'" };
 
 export default function NewPayment() {
   const navigate = useNavigate();
