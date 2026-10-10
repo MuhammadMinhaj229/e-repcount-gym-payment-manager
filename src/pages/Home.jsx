@@ -29,12 +29,6 @@ const dateKey = date => {
   return `${year}-${month}-${day}`;
 };
 
-function aggregateNumber(result, id) {
-  const aggregate = result.aggregators?.find(item => item.id === id);
-  const value = aggregate?.data?.count ?? aggregate?.count ?? aggregate?.value ?? 0;
-  return Number(value) || 0;
-}
-
 async function fetchAllTodayDues(today) {
   const records = [];
   let page = 1;
@@ -169,7 +163,7 @@ export default function Home() {
           detail={`${money(summary?.dueTodayBalance)} to collect today`}
           icon="CalendarCheck"
           tone="danger"
-          loading={duesSummaryLoading || dueTodayLoading}
+          loading={summaryLoading || dueTodayLoading}
         />
       </section>
 
