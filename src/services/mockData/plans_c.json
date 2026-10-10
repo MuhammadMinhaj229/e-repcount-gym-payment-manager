@@ -1,0 +1,77 @@
+{
+  "_meta": {
+    "_table": {
+      "label": "Membership plan",
+      "plural": "Membership plans",
+      "icon": "Layers"
+    },
+    "Name": {
+      "type": "Text",
+      "label": "Plan name",
+      "required": true
+    },
+    "duration_c": {
+      "type": "Picklist",
+      "label": "Duration",
+      "values": "1 month,3 months,6 months,12 months"
+    },
+    "price_c": {
+      "type": "Decimal",
+      "label": "Price (INR)",
+      "precision": 2,
+      "required": true
+    },
+    "description_c": {
+      "type": "MultilineText",
+      "label": "Description"
+    },
+    "active_c": {
+      "type": "Boolean",
+      "label": "Active"
+    }
+  },
+  "records": [
+    {
+      "Id": "22222222-2222-4222-8222-222222222221",
+      "Name": "Monthly Strength",
+      "duration_c": "1 month",
+      "price_c": 1200,
+      "description_c": "Open gym access and standard equipment",
+      "active_c": true,
+      "CreatedOn": "2026-01-01T09:00:00.000Z",
+      "ModifiedOn": "2026-01-01T09:00:00.000Z",
+      "Owner": {
+        "Id": "a41c9d27-5e8f-4b06-9c3a-d7f218e64b90",
+        "Name": "Demo Admin"
+      }
+    },
+    {
+      "Id": "22222222-2222-4222-8222-222222222222",
+      "Name": "Quarterly Fit",
+      "duration_c": "3 months",
+      "price_c": 3200,
+      "description_c": "Three-month access with a saving over monthly billing",
+      "active_c": true,
+      "CreatedOn": "2026-01-01T09:00:00.000Z",
+      "ModifiedOn": "2026-01-01T09:00:00.000Z",
+      "Owner": {
+        "Id": "a41c9d27-5e8f-4b06-9c3a-d7f218e64b90",
+        "Name": "Demo Admin"
+      }
+    },
+    {
+      "Id": "22222222-2222-4222-8222-222222222223",
+      "Name": "Annual Athlete",
+      "duration_c": "12 months",
+      "price_c": 11000,
+      "description_c": "Full-year gym access",
+      "active_c": true,
+      "CreatedOn": "2026-01-01T09:00:00.000Z",
+      "ModifiedOn": "2026-01-01T09:00:00.000Z",
+      "Owner": {
+        "Id": "a41c9d27-5e8f-4b06-9c3a-d7f218e64b90",
+        "Name": "Demo Admin"
+      }
+    }
+  ]
+}
