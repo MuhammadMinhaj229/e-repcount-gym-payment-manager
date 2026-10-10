@@ -1,46 +1,106 @@
 # RepCount — Gym Payment Manager
 
-RepCount is a mobile-first gym-owner CRM for member records, membership plans, fee cycles, payment receipts, upcoming dues, renewals, and WhatsApp reminder links.
+RepCount is a mobile-first gym-owner workspace for membership plans, member records, fee cycles, payment receipts, renewals and collection follow-ups. The application is branded as **Powered by Alif Growth Media**.
 
-## Current implementation status
+## Backend migration status
 
-The current app is a React + Vite project and its data adapter is still Apper's mock/memory adapter. It is **not yet connected to a production database or Supabase**. The dashboard is intentionally simplified to three collection metrics and a due-today list; summary cards navigate to filtered dues/payments views. Do not use this mock setup for real member/payment records.
+This branch removes the Apper SDK runtime and replaces it with Supabase Auth, PostgreSQL, Storage, a server-side user-management function and a Supabase-backed query adapter.
+
+**The migration is staged, not yet connected to production.** The SQL migration and first-admin bootstrap must be applied to the Supabase project, the `admin-users` Edge Function must be deployed, and the new Vercel environment variables must be set before this branch is merged/deployed to the live site.
+
+The old MemoryAdapter seed data and demo login seed are removed from this branch. Do not merge/deploy until the initial Admin account has been bootstrapped and the build has been tested.
+
+## Architecture
+
+- **Frontend:** React + Vite; hosted on Vercel.
+- **Identity:** Supabase Auth password sign-in; public self-sign-up is disabled in RepCount. Accounts created by an Admin are marked confirmed by a server-side function, so no Gmail verification link is required.
+- **Database:** Supabase PostgreSQL with per-gym `gym_id` scopes, role rules and Row Level Security (RLS).
+- **Roles:** Admin, Manager and Staff. Admin manages accounts and roles. Manager can manage membership operations. Staff can read gym records and record payments.
+- **Payment consistency:** a PostgreSQL trigger recalculates fee-cycle paid amount, balance and status within the same transaction as payment inserts/updates/deletes.
+- **User administration:** `supabase/functions/admin-users/index.ts` validates the caller's Supabase JWT and requires an active Admin role before creating confirmed accounts, changing roles, listing accounts or deleting accounts. The service-role credential is server-side only.
+
+## First-time Supabase setup
+
+Use the Supabase project intended for RepCount. Do not paste keys or passwords into this repository or into chat.
+
+### 1. Apply the schema
+
+Open the Supabase Dashboard → **SQL Editor** → **New query**. Copy and run the full contents of:
+
+`supabase/migrations/202610100001_initial_schema.sql`
+
+It creates the business tables, indexes, workspace helper functions, RLS policies, same-gym relationship checks, the payment-reconciliation triggers and the dashboard-summary RPC.
+
+Do not run business CRUD until this succeeds without SQL errors.
+
+### 2. Create the first Admin
+
+In Supabase Dashboard → **Authentication → Users → Add user**, create the first Admin login. Use a strong password and enable **Auto Confirm User** for this Admin. This account is the trusted initial administrator; do not use the old demo credentials.
+
+Then open `supabase/bootstrap_admin.sql`, replace the two placeholder values (`REPLACE_WITH_FIRST_ADMIN_EMAIL` and `REPLACE_WITH_GYM_NAME`) with your Admin email and your gym/workspace name, and run that edited script in the SQL Editor **once only**. It creates the gym, user profile and Admin membership. Do not delete this account or run the bootstrap script twice.
+
+### 3. Deploy the Admin user-management function
+
+Install the Supabase CLI and authenticate from a terminal:
+
+```bash
+npm install
+npx supabase login
+npx supabase link --project-ref pnhpkraqsahpebjiyynwz
+npx supabase functions deploy admin-users
+```
+
+Supabase Edge Functions receive their project URL and privileged server environment from Supabase. Do not copy the service-role/secret key into a `VITE_*` variable, frontend source or GitHub. Keep the function's JWT verification enabled. The function additionally calls Supabase Auth to validate the signed-in user and checks their active Admin role.
+
+### 4. Configure Supabase Auth
+
+In Supabase Authentication settings, disable **Allow new users to sign up**. The app's public signup page is informational only; only the server-side Admin function can create new accounts.
+
+Set the production Site URL and allowed redirect URLs to your actual Vercel/custom domain. Include the deployed `/reset-password` URL and your local development reset URL if you test locally. Admin-created users do not need an email-verification link.
+
+### 5. Set Vercel environment variables
+
+In Vercel → RepCount → **Settings → Environment Variables**, set both variables for Production (and Preview if needed):
+
+- `VITE_SUPABASE_URL` = `https://pnhpkraqsahpebjiyynwz.supabase.co`
+- `VITE_SUPABASE_PUBLISHABLE_KEY` = the Supabase project's current publishable key
+
+Redeploy after saving these values. These are the only Supabase configuration values that belong in the browser bundle. **Never create a `VITE_SUPABASE_SERVICE_ROLE_KEY` or place a database connection string in a frontend variable.**
+
+### 6. Test before merging to main
+
+1. Sign in using the initial Supabase Admin created above.
+2. Open Settings and create a second user with the Staff role.
+3. Verify the second user can sign in without email verification.
+4. Verify Staff can read members/plans/dues and create payments, but cannot open Settings, edit plans/members/dues, change roles or delete accounts.
+5. Create a plan, member, due and payment. Refresh the browser and confirm the data persists.
+6. Add multiple payments, edit/refund/delete a payment and confirm the fee-cycle balance follows the paid payment ledger.
+7. Confirm a user in a different gym cannot access the first gym's rows, even by guessing record IDs.
+8. Confirm the last active Admin and the currently signed-in account cannot be deleted/demoted through Settings.
 
 ## Local development
 
 Requirements: Node.js and npm.
 
 1. Copy `.env.example` to `.env.local`.
-2. Replace the placeholders with the approved Apper project/public values for the current SDK setup.
-3. Install dependencies: `npm install`.
-4. Start the dev server: `npm run dev`.
-5. Validate a production build: `npm run build`.
+2. Replace the placeholder publishable key using the Supabase dashboard.
+3. Run `npm install`, then `npm run dev`.
+4. Check production compilation with `npm run build`.
 
-## Environment and secrets
+## Secrets and credential hygiene
 
-- Real `.env`, `.env.local`, and all `.env.*` files are ignored by Git.
-- Only placeholder values belong in `.env.example`.
-- Never commit passwords, database credentials, Supabase secret/service-role keys, or private API tokens.
-- Browser-exposed `VITE_*` values are not secret credentials; access control must be enforced by the backend.
+- Real `.env`, `.env.local` and all other `.env.*` files are ignored by Git; only `.env.example` is committed.
+- A publishable key is designed to be available to the browser, but RLS is still required.
+- Secret/service-role keys and the database password stay server-side. Rotate the privileged keys and database password that were pasted into chat before deploying this migration, then use the new credentials only in the appropriate private Supabase configuration.
+- Never commit login passwords, API secret keys, service-role keys or the database pooler connection string.
 
-## Database / production checklist
+## Dashboard behaviour
 
-Before handling real gym data:
-- Choose and connect the production data store. For a Supabase migration, add the project URL and publishable key as browser variables, keep any secret/service-role key exclusively server-side, create the SQL schema migration, and enforce per-gym Row Level Security before using real records.
-- Use server-enforced per-owner access policies and verify them using two separate test accounts.
-- Ensure payment writes, refunds/deletions, and linked fee-cycle balances remain reconciled.
-- Configure authentication redirect URLs and the deployed site's allowed origins.
-- Test all create, edit, delete, filtering, date-boundary, and mobile workflows against live data.
-- Import demo records only deliberately, after reviewing ownership and consistency.
+The simplified home screen shows only three headline metrics: outstanding fees, collected today and members due today. Each card opens the matching filtered dues or payment page, and the dashboard includes a compact due-today member list.
 
-## Audit safeguards in this version
+## Migration notes
 
-- Date fields default to the browser's local calendar date rather than UTC.
-- Member history queries filter by the selected member on the data layer and fetch in pages.
-- Linked paid payments attempt to update the fee-cycle amount paid, balance, and status after creation, editing, refunds, or deletion.
-- Write failures are shown to the user and recorded in the browser console without logging member contact details.
-- The initial sample plans, gym members, fee cycles and payments have been cleared for a clean-start showcase; new mock records include current demo-owner metadata.
-
-## Important data behavior
-
-Payment-to-dues reconciliation currently uses sequential client-side SDK writes, not a database transaction. The app surfaces a warning if the second write fails, but a production deployment should move this reconciliation into a trusted transactional server-side function before handling real payments. This project is still using mock data until a live data store is explicitly connected.
+- The original Apper CDN script, MemoryAdapter and mock row-policy loader are removed from the migration branch.
+- Account passwords are never stored in RepCount business tables.
+- Business tables reference users only through Supabase Auth IDs and the private `gym_users` role mapping.
+- Public signup is disabled; user administration is done server-side and role assignments are never accepted directly from the browser.
