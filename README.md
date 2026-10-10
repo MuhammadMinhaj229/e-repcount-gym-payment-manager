@@ -33,7 +33,7 @@ Open the Supabase Dashboard → **SQL Editor** → **New query**. Run these migr
 3. `supabase/migrations/202610100003_move_tenant_helpers_private.sql`
 4. `supabase/migrations/202610100004_fix_workspace_link_trigger.sql`
 
-The initial schema creates the business tables, per-gym RLS policies, relationship checks, payment-reconciliation triggers and dashboard-summary RPC. The follow-up migrations harden function grants, keep tenant helpers outside the API-exposed `public` schema, fix relationship validation, add the private login lock table, add foreign-key indexes, and optimize row-level security policies. These migrations have already been applied to the live Supabase project. For a fresh project, run all five files in order and verify each completes without SQL errors.
+The initial schema creates the business tables, per-gym RLS policies, relationship checks, payment-reconciliation triggers and dashboard-summary RPC. The follow-up migrations harden function grants, keep tenant helpers outside the API-exposed `public` schema, fix relationship validation, add the private login lock table, add foreign-key indexes, and optimize row-level security policies. These migrations have already been applied to the live Supabase project. For a fresh project, run all six files in order and verify each completes without SQL errors.
 
 ### 2. Create the first Admin
 
