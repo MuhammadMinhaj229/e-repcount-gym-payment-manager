@@ -16,6 +16,7 @@ export default function NewPayment() {
   const { data: members } = useFetch(
     () => sdk.table('gym_members_c')
       .select(['Id', 'Name', 'phone_c', 'plan_c'])
+      .page(1, 100)
       .fetch()
       .then(result => {
         if (!result.success) throw new Error(result.message);
@@ -26,6 +27,7 @@ export default function NewPayment() {
   const { data: dues } = useFetch(
     () => sdk.table('membership_dues_c')
       .select(['Id', 'Name', 'member_c', 'balance_c', 'status_c'])
+      .page(1, 100)
       .fetch()
       .then(result => {
         if (!result.success) throw new Error(result.message);
