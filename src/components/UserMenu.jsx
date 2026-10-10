@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/layouts/RootLayout';
 import ThemeToggle from '@/components/ThemeToggle';
+import { getProfileMeta } from '@/services/userPermissions';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   DropdownMenu,
@@ -31,7 +32,8 @@ export default function UserMenu({ user: userProp, initials: initialsProp, displ
     initialsProp ||
     displayName.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase() ||
     'U';
-  const profileLabel = String(user?.profile ?? '').replace(/_c$/, '');
+  const profileMeta = getProfileMeta(user?.profile);
+  const profileLabel = profileMeta.label || String(user?.profile ?? '').replace(/_c$/, '');
 
   return (
     <DropdownMenu>
@@ -58,6 +60,11 @@ export default function UserMenu({ user: userProp, initials: initialsProp, displ
           <ThemeToggle className="w-full justify-between" />
         </div>
         <DropdownMenuSeparator />
+        {profileMeta.canManageTeam && (
+          <DropdownMenuItem asChild>
+            <Link to="/settings">Settings and users</Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem asChild>
           <Link to="/change-password">Change password</Link>
         </DropdownMenuItem>
