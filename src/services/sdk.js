@@ -472,9 +472,13 @@ let cachedAuthUserId = null;
 
 async function resolveCurrentAppUser() {
   const client = requireSupabase();
-  if (cachedAppUser?.userId && cachedAppUser?.gymId) return cachedAppUser;
   const { data, error } = await client.auth.getUser();
-  if (error || !data.user) throw new Error('Your session expired. Sign in again.');
+  if (error || !data.user) {
+    cachedAppUser = null;
+    cachedAuthUserId = null;
+    throw new Error('Your session expired. Sign in again.');
+  }
+  if (cachedAppUser?.userId === data.user.id && cachedAppUser?.gymId) return cachedAppUser;
   const appUser = await resolveAppUser(data.user);
   if (!appUser) throw new Error('Your account is not assigned to an active RepCount workspace.');
   cachedAppUser = appUser;
@@ -511,14 +515,24 @@ const session = {
 
   async getUser() {
     const client = requireSupabase();
-    const { data, error } = await client.auth.getSession();
-    if (error) throw error;
-    if (!data.session?.user) {
+    const { data: sessionData, error: sessionError } = await client.auth.getSession();
+    if (sessionError) throw sessionError;
+    if (!sessionData.session?.user) {
       cachedAppUser = null;
       cachedAuthUserId = null;
       return null;
     }
-    const appUser = await resolveAppUser(data.session.user);
+
+    // getSession reads persisted client state; getUser verifies the access token with Supabase Auth.
+    const { data: verifiedData, error: verifiedError } = await client.auth.getUser();
+    if (verifiedError || !verifiedData.user) {
+      await client.auth.signOut();
+      cachedAppUser = null;
+      cachedAuthUserId = null;
+      return null;
+    }
+
+    const appUser = await resolveAppUser(verifiedData.user);
     if (!appUser) {
       await client.auth.signOut();
       cachedAppUser = null;
@@ -526,7 +540,7 @@ const session = {
       return null;
     }
     cachedAppUser = appUser;
-    cachedAuthUserId = data.session.user.id;
+    cachedAuthUserId = verifiedData.user.id;
     return appUser;
   },
 
@@ -679,6 +693,45 @@ export const sdk = {
   isConfigured: isSupabaseConfigured,
   isSupabase: true,
   table: tableName => new SupabaseQueryBuilder(tableName),
+
+  // Compatibility for existing app components that need to render workspace people.
+  // This reads active workspace memberships through the server-side Admin API; it never queries auth.users from the browser.
+  admin: {
+    async fetch(entity, options = {}) {
+      if (entity !== 'user') throw new Error('Only workspace users are supported by this adapter.');
+      const offset = Math.max(0, Number(options.pagingInfo?.offset) || 0);
+      const limit = Math.max(1, Number(options.pagingInfo?.limit) || 100);
+      const result = await teams.getMembers(offset, limit);
+      const users = (result.data ?? []).map(member => {
+        const parts = String(member.name ?? '').trim().split(/\\s+/).filter(Boolean);
+        return {
+          Id: member.id,
+          Name: member.name ?? member.email ?? 'User',
+          FirstName: parts[0] ?? '',
+          LastName: parts.slice(1).join(' '),
+          Email: member.email ?? '',
+          AvatarUrl: member.avatarUrl ?? '',
+        };
+      });
+      return { data: users, total: result.total ?? users.length, hasMore: Boolean(result.hasMore) };
+    },
+  },
+
+  functions: {
+    async invoke(functionName, body, options = {}) {
+      const client = requireSupabase();
+      const { data, error } = await client.functions.invoke(functionName, {
+        body,
+        headers: options.headers,
+        signal: options.signal,
+        region: options.region,
+      });
+      if (error) {
+        return { ok: false, error: { message: error.message || 'Function call failed.' } };
+      }
+      return { ok: true, value: data };
+    },
+  },
 
   async dashboardSummary(today) {
     const client = requireSupabase();
