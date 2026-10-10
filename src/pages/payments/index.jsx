@@ -33,7 +33,7 @@ const dateKey = date => {
   return `${year}-${month}-${day}`;
 };
 
-const { and, or, contains, eq } = window.RepCountSDK.CoreSDK;
+const { and, or, contains, eq, isIn } = window.RepCountSDK.CoreSDK;
 const STATUSES = ['All', 'Paid', 'Pending', 'Refunded'];
 
 export default function Payments() {
@@ -51,11 +51,17 @@ export default function Payments() {
   const { data, loading, error, run } = useFetch(async () => {
     const filters = [];
     if (search.trim()) {
-      filters.push(or(
-        contains('Name', search.trim()),
-        contains('member_c', search.trim()),
-        contains('method_c', search.trim()),
-      ));
+      const term = search.trim();
+      const matchingMembers = await sdk.table('gym_members_c')
+        .select(['Id'])
+        .where(or(contains('Name', term), contains('phone_c', term)))
+        .limit(1000, 0)
+        .fetch();
+      if (!matchingMembers.success) throw new Error(matchingMembers.message || 'Could not search members.');
+      const searchClauses = [contains('Name', term), contains('method_c', term)];
+      const memberIds = matchingMembers.data.map(member => member.Id);
+      if (memberIds.length) searchClauses.push(isIn('member_c', memberIds));
+      filters.push(or(...searchClauses));
     }
     if (status !== 'All') filters.push(eq('status_c', status));
     if (period === 'today') filters.push(eq('paid_on_c', today));
