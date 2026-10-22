@@ -4,13 +4,11 @@
 [![Framework](https://img.shields.io/badge/Framework-React_%2B_Vite-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev)
 [![State](https://img.shields.io/badge/State-Redux_Toolkit-764ABC?style=flat-square&logo=redux&logoColor=white)](https://redux-toolkit.js.org/)
 [![Database](https://img.shields.io/badge/Database-Supabase-3ECF8E?style=flat-square&logo=supabase&logoColor=white)](https://supabase.com)
-[![Brand](https://img.shields.io/badge/Powered_by-Alif_Growth_Media-c99b3b?style=flat-square)](https://alif-growth.netlify.app)
-
 **RepCount** is an intuitive, mobile-first member management workspace engineered specifically for gym owners, fitness studio operators, and sports academy managers. It replaces messy paper registers and chaotic spreadsheets with clear fee cycle tracking, automated renewal alerts, and direct WhatsApp payment reminders.
 
 ---
 
-## ⚡ Core Features
+## Core Features
 
 - **Member Directory & Plan Tracking:** View active passes, plan types (Monthly, Quarterly, Annual, PT), and membership expiration dates at a glance.
 - **Automated Fee Expiry Alerts:** Categorizes members into *Active*, *Due Soon (<= 3 days)*, and *Fee Overdue* automatically.
@@ -20,7 +18,7 @@
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 - **Frontend:** React, Vite, Redux Toolkit, Tailwind CSS, Lucide Icons, Framer Motion
 - **Database:** Supabase (PostgreSQL with membership schema and functions)
@@ -28,7 +26,7 @@
 
 ---
 
-## 💻 Local Development Setup
+## Local Development Setup
 
 ```bash
 # 1. Clone repository
@@ -55,7 +53,7 @@ npm run dev
 
 ---
 
-## 🚀 How to Deploy to Vercel
+## How to Deploy to Vercel
 
 1. Push your repository to GitHub.
 2. In the **Vercel Dashboard**, click **Import Project** and select `e-repcount-gym-payment-manager`.
@@ -68,6 +66,6 @@ npm run dev
 
 ---
 
-## 🛡️ License & Author
+## License & Author
 Engineered by **Mohammed Minhaj Mahmood** ([@MuhammadMinhaj229](https://github.com/MuhammadMinhaj229)).  
 Branded and supported as *Powered by Alif Growth Media*.
