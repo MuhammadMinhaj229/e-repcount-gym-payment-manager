@@ -8,6 +8,22 @@
 
 ---
 
+## Architecture Flow
+
+```mermaid
+flowchart TD
+    FrontDesk["Front Desk / Mobile Dashboard"] --> Roster["Member Roster Engine"]
+    Roster --> Evaluation{"Membership Status Check"}
+    Evaluation -->|"Days Left > 3"| Active["Active Member"]
+    Evaluation -->|"Days Left <= 3"| DueSoon["Fee Due Soon"]
+    Evaluation -->|"Days Left == 0"| Overdue["Membership Overdue"]
+    DueSoon --> WhatsApp["1-Tap WhatsApp Reminder Engine"]
+    Overdue --> WhatsApp
+    WhatsApp --> Member["Member Mobile WhatsApp"]
+```
+
+---
+
 ## Core Features
 
 - **Member Directory & Plan Tracking:** View active passes, plan types (Monthly, Quarterly, Annual, PT), and membership expiration dates at a glance.
