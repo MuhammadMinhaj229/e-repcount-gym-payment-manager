@@ -1,7 +1,7 @@
 export const APP_CONFIG = {
   name: 'RepCount',
   tagline: 'The membership desk built for gym owners.',
-  emoji: '🏋️',
+  emoji: '',
   icon: 'Dumbbell',
   defaultTheme: 'system',
   defaultLoginRoute: '/login',
